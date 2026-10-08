@@ -1,0 +1,17 @@
+from datetime import datetime
+from pydantic import BaseModel, EmailStr
+from .business import BusinessOut
+
+class UserOut(BaseModel):
+    id: int
+    business_id: int
+    name: str
+    email: EmailStr
+    role: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class UserWithBusinessOut(UserOut):
+    business: BusinessOut

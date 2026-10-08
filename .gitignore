@@ -28,3 +28,6 @@ out/
 
 # Task docs
 files/
+
+# Agents / Rule
+.agents
