@@ -15,3 +15,9 @@ class TicketRepository:
         self.db.commit()
         self.db.refresh(ticket)
         return ticket
+
+    def save(self, ticket: Ticket) -> Ticket:
+        self.db.add(ticket)
+        self.db.commit()
+        self.db.refresh(ticket)
+        return ticket

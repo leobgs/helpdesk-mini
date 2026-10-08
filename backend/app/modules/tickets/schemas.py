@@ -26,3 +26,7 @@ class TicketOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+class TicketUpdate(BaseModel):
+    status: Optional[str] = None
+    assigned_agent_id: Optional[int] = None
