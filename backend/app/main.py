@@ -2,9 +2,9 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from app.routers import tickets
 from app.modules.auth import router as auth_router
 from app.modules.users import router as users_router
+from app.modules.tickets import router as tickets_router
 from app.core.config import settings
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -34,7 +34,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 app.include_router(auth_router.router, prefix=settings.API_V1_STR)
 app.include_router(users_router.router, prefix=settings.API_V1_STR)
-app.include_router(tickets.router, prefix=settings.API_V1_STR)
+app.include_router(tickets_router.router, prefix=settings.API_V1_STR)
 
 @app.get("/")
 def read_root():
