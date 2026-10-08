@@ -42,8 +42,9 @@ class TicketService:
             raise HTTPException(status_code=404, detail="Ticket not found")
         return ticket
 
-    def update_ticket(self, data: TicketUpdate, query: Query, ticket_id: int, current_user: User) -> Ticket:
+    def update_ticket(self, data: TicketUpdate, query: Query, ticket_id: int, current_user: User) -> tuple[Ticket, bool]:
         ticket = self.get_ticket(query, ticket_id)
+        old_status = ticket.status
 
         if ticket.status == StatusEnum.closed:
             raise HTTPException(status_code=403, detail="Ticket is closed and locked")
@@ -94,8 +95,8 @@ class TicketService:
 
         ticket.updated_at = datetime.utcnow()
         self.repo.save(ticket)
-        # TODO: Broadcast to WebSockets (Task 10)
-        return ticket
+        status_changed = (old_status != ticket.status)
+        return ticket, status_changed
 
     def get_ticket_messages(self, query: Query, ticket_id: int):
         ticket = self.get_ticket(query, ticket_id)
