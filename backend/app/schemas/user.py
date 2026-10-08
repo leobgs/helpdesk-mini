@@ -15,3 +15,9 @@ class UserOut(BaseModel):
 
 class UserWithBusinessOut(UserOut):
     business: BusinessOut
+
+class UserCreate(BaseModel):
+    name: str
+    email: EmailStr
+    password: str
+    role: str
