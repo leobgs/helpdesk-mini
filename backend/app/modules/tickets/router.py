@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.db.database import get_db
 from app.db.models import User, RoleEnum
-from app.modules.tickets.schemas import TicketCreate, TicketOut, TicketUpdate
+from app.modules.tickets.schemas import TicketCreate, TicketOut, TicketUpdate, MessageOut, MessageCreate
 from app.modules.tickets.service import TicketService
 from app.api.deps import get_current_user, RoleChecker, get_ticket_query
 
@@ -52,3 +52,24 @@ def update_ticket(
 ):
     query = get_ticket_query(db, current_user)
     return service.update_ticket(data, query, ticket_id, current_user)
+
+@router.get("/{ticket_id}/messages", response_model=List[MessageOut])
+def list_ticket_messages(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    service: TicketService = Depends(get_ticket_service)
+):
+    query = get_ticket_query(db, current_user)
+    return service.get_ticket_messages(query, ticket_id)
+
+@router.post("/{ticket_id}/messages", response_model=MessageOut)
+def add_ticket_message(
+    ticket_id: int,
+    data: MessageCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    service: TicketService = Depends(get_ticket_service)
+):
+    query = get_ticket_query(db, current_user)
+    return service.add_message(query, ticket_id, current_user.id, data.body)

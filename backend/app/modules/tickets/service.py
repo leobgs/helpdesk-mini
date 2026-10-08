@@ -96,3 +96,21 @@ class TicketService:
         self.repo.save(ticket)
         # TODO: Broadcast to WebSockets (Task 10)
         return ticket
+
+    def get_ticket_messages(self, query: Query, ticket_id: int):
+        ticket = self.get_ticket(query, ticket_id)
+        return self.repo.get_ticket_messages(ticket.id)
+
+    def add_message(self, query: Query, ticket_id: int, sender_id: int, body: str) -> Message:
+        ticket = self.get_ticket(query, ticket_id)
+        
+        if ticket.status == StatusEnum.closed:
+            raise HTTPException(status_code=403, detail="Cannot add messages to a closed ticket")
+            
+        message = Message(
+            ticket_id=ticket.id,
+            sender_id=sender_id,
+            body=body
+        )
+        ticket.updated_at = datetime.utcnow()
+        return self.repo.add_message(message, ticket)

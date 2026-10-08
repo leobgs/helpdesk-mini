@@ -30,3 +30,15 @@ class TicketOut(BaseModel):
 class TicketUpdate(BaseModel):
     status: Optional[str] = None
     assigned_agent_id: Optional[int] = None
+
+class MessageCreate(BaseModel):
+    body: str
+
+class MessageOut(BaseModel):
+    id: int
+    body: str
+    created_at: datetime
+    sender: UserOut
+
+    class Config:
+        from_attributes = True
