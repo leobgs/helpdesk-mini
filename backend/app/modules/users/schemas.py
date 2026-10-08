@@ -1,6 +1,6 @@
 from datetime import datetime
 from pydantic import BaseModel, EmailStr
-from .business import BusinessOut
+from app.schemas.business import BusinessOut
 
 class UserOut(BaseModel):
     id: int

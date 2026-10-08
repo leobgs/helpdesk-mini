@@ -4,7 +4,7 @@ from app.db.database import get_db
 from app.db.models import User
 from app.modules.auth.schemas import RegisterBusinessInput, LoginInput, TokenResponse, RefreshTokenInput
 from app.modules.auth.service import AuthService
-from app.schemas.user import UserWithBusinessOut
+from app.modules.users.schemas import UserWithBusinessOut
 from app.api import deps
 
 router = APIRouter(prefix="/auth", tags=["auth"])

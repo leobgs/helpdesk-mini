@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel
-from .user import UserOut
+from app.modules.users.schemas import UserOut
 
 class TicketCreate(BaseModel):
     subject: str
