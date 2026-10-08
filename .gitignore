@@ -1,1 +1,30 @@
-./node_modules
+# Env files
+.env
+.env.*
+!.env.example
+
+# Node dependencies
+node_modules/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# DB files
+*.sqlite3
+*.db
+
+# Build output
+.next/
+dist/
+build/
+out/
+
+# Task docs
+files/
