@@ -2,7 +2,8 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from app.routers import auth, users, tickets
+from app.routers import users, tickets
+from app.modules.auth import router as auth_router
 from app.core.config import settings
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -30,7 +31,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         content={"detail": "Invalid input", "errors": exc.errors()},
     )
 
-app.include_router(auth.router, prefix=settings.API_V1_STR)
+app.include_router(auth_router.router, prefix=settings.API_V1_STR)
 app.include_router(users.router, prefix=settings.API_V1_STR)
 app.include_router(tickets.router, prefix=settings.API_V1_STR)
 
