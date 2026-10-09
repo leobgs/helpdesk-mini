@@ -9,8 +9,8 @@ import { api } from '@/lib/axios';
 import { Ticket, Status } from '@/types';
 import { AuthGuard } from '@/components/auth/AuthGuard';
 import { useAuth } from '@/contexts/AuthContext';
-
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -57,7 +57,7 @@ export default function TicketsPage() {
           <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Tickets</h1>
           
           <div className="flex items-center gap-3 w-full sm:w-auto">
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v || 'all')}>
               <SelectTrigger className="w-full sm:w-[180px] bg-white">
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
@@ -71,12 +71,10 @@ export default function TicketsPage() {
             </Select>
 
             {user?.role === 'customer' && (
-              <Button asChild className="shrink-0">
-                <Link href="/tickets/new">
-                  <PlusCircle className="mr-2 h-4 w-4" />
-                  New Ticket
-                </Link>
-              </Button>
+              <Link href="/tickets/new" className={cn(buttonVariants({ variant: "default" }), "shrink-0")}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                New Ticket
+              </Link>
             )}
           </div>
         </div>

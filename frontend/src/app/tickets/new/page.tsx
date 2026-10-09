@@ -8,7 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
@@ -48,11 +48,9 @@ export default function CreateTicketPage() {
     <RoleGuard allowedRoles={['customer']}>
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/tickets">
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
+          <Link href="/tickets" className={buttonVariants({ variant: "ghost", size: "icon" })}>
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
           <h1 className="text-2xl font-bold text-slate-800">Create New Ticket</h1>
         </div>
 
@@ -69,7 +67,7 @@ export default function CreateTicketPage() {
                 <FormField
                   control={form.control}
                   name="subject"
-                  render={({ field }) => (
+                  render={({ field }: any) => (
                     <FormItem>
                       <FormLabel>Subject</FormLabel>
                       <FormControl>
@@ -84,7 +82,7 @@ export default function CreateTicketPage() {
                   <FormField
                     control={form.control}
                     name="category"
-                    render={({ field }) => (
+                    render={({ field }: any) => (
                       <FormItem>
                         <FormLabel>Category</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
@@ -108,7 +106,7 @@ export default function CreateTicketPage() {
                   <FormField
                     control={form.control}
                     name="priority"
-                    render={({ field }) => (
+                    render={({ field }: any) => (
                       <FormItem>
                         <FormLabel>Priority</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
@@ -132,7 +130,7 @@ export default function CreateTicketPage() {
                 <FormField
                   control={form.control}
                   name="message"
-                  render={({ field }) => (
+                  render={({ field }: any) => (
                     <FormItem>
                       <FormLabel>Message</FormLabel>
                       <FormControl>

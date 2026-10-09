@@ -70,7 +70,7 @@ export default function LoginPage() {
               <FormField
                 control={form.control}
                 name="email"
-                render={({ field }) => (
+                render={({ field }: any) => (
                   <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
@@ -83,7 +83,7 @@ export default function LoginPage() {
               <FormField
                 control={form.control}
                 name="password"
-                render={({ field }) => (
+                render={({ field }: any) => (
                   <FormItem>
                     <FormLabel>Password</FormLabel>
                     <FormControl>

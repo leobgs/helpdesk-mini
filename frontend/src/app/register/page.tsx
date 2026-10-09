@@ -77,7 +77,7 @@ export default function RegisterPage() {
               <FormField
                 control={form.control}
                 name="business_name"
-                render={({ field }) => (
+                render={({ field }: any) => (
                   <FormItem>
                     <FormLabel>Business Name</FormLabel>
                     <FormControl>
@@ -90,7 +90,7 @@ export default function RegisterPage() {
               <FormField
                 control={form.control}
                 name="name"
-                render={({ field }) => (
+                render={({ field }: any) => (
                   <FormItem>
                     <FormLabel>Admin Full Name</FormLabel>
                     <FormControl>
@@ -103,7 +103,7 @@ export default function RegisterPage() {
               <FormField
                 control={form.control}
                 name="email"
-                render={({ field }) => (
+                render={({ field }: any) => (
                   <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
@@ -116,7 +116,7 @@ export default function RegisterPage() {
               <FormField
                 control={form.control}
                 name="password"
-                render={({ field }) => (
+                render={({ field }: any) => (
                   <FormItem>
                     <FormLabel>Password</FormLabel>
                     <FormControl>

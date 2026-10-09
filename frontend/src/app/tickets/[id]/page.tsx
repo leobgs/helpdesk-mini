@@ -12,7 +12,7 @@ import { Ticket, Message, Status } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { AuthGuard } from '@/components/auth/AuthGuard';
 
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -146,16 +146,14 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
       <AlertCircle className="w-12 h-12 text-red-500" />
       <h2 className="text-xl font-bold text-slate-800">Ticket Not Found</h2>
       <p className="text-slate-500">You do not have access to this ticket or it does not exist.</p>
-      <Button asChild><Link href="/tickets">Back to Tickets</Link></Button>
+      <Link href="/tickets" className={buttonVariants({ variant: "default" })}>Back to Tickets</Link>
     </div>
   );
 
   return (
     <AuthGuard>
       <div className="flex items-center gap-4 mb-6">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/tickets"><ArrowLeft className="h-4 w-4" /></Link>
-        </Button>
+        <Link href="/tickets" className={buttonVariants({ variant: "ghost", size: "icon" })}><ArrowLeft className="h-4 w-4" /></Link>
         <h1 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-3">
           #{ticket.id} - {ticket.subject}
           <Badge variant="secondary" className="uppercase text-xs">{ticket.status.replace('_', ' ')}</Badge>
@@ -174,12 +172,12 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
           </CardHeader>
           <CardContent className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50">
             {messages.map((msg) => {
-              const isMe = msg.sender.id === user?.id;
+              const isMe = msg.sender?.id === user?.id;
               return (
                 <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} gap-1 max-w-[80%] ${isMe ? 'ml-auto' : ''}`}>
                   <div className="text-[11px] text-slate-500 flex items-center gap-1">
-                    <span className="font-semibold text-slate-700">{isMe ? 'You' : msg.sender.name}</span>
-                    <span className="uppercase opacity-60">({msg.sender.role})</span>
+                    <span className="font-semibold text-slate-700">{isMe ? 'You' : msg.sender?.name || 'Unknown'}</span>
+                    <span className="uppercase opacity-60">({msg.sender?.role || 'system'})</span>
                     <span className="opacity-60 ml-2">{new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                   </div>
                   <div className={`p-3 rounded-lg text-sm shadow-sm whitespace-pre-wrap ${

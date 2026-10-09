@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -76,12 +76,10 @@ export default function AdminUsersPage() {
           </h1>
           
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Add User
-              </Button>
-            </DialogTrigger>
+            <Button onClick={() => setIsDialogOpen(true)}>
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Add User
+            </Button>
             <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
                 <DialogTitle>Add New User</DialogTitle>
@@ -97,7 +95,7 @@ export default function AdminUsersPage() {
                   <FormField
                     control={form.control}
                     name="name"
-                    render={({ field }) => (
+                    render={({ field }: any) => (
                       <FormItem>
                         <FormLabel>Name</FormLabel>
                         <FormControl>
@@ -111,7 +109,7 @@ export default function AdminUsersPage() {
                   <FormField
                     control={form.control}
                     name="email"
-                    render={({ field }) => (
+                    render={({ field }: any) => (
                       <FormItem>
                         <FormLabel>Email</FormLabel>
                         <FormControl>
@@ -125,7 +123,7 @@ export default function AdminUsersPage() {
                   <FormField
                     control={form.control}
                     name="role"
-                    render={({ field }) => (
+                    render={({ field }: any) => (
                       <FormItem>
                         <FormLabel>Role</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
@@ -147,7 +145,7 @@ export default function AdminUsersPage() {
                   <FormField
                     control={form.control}
                     name="password"
-                    render={({ field }) => (
+                    render={({ field }: any) => (
                       <FormItem>
                         <FormLabel>Password</FormLabel>
                         <FormControl>
