@@ -6,20 +6,18 @@ from app.modules.auth.schemas import RegisterBusinessInput, LoginInput, TokenRes
 from app.modules.auth.service import AuthService
 from app.modules.users.schemas import UserWithBusinessOut
 from app.api import deps
-from fastapi.security import OAuth2PasswordRequestForm
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 def get_auth_service(db: Session = Depends(get_db)) -> AuthService:
     return AuthService(db)
 
-@router.post("/registerbusiness", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register-business", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 def register_business(data: RegisterBusinessInput, service: AuthService = Depends(get_auth_service)):
     return service.register_business(data)
 
 @router.post("/login", response_model=TokenResponse)
-def login(form_data: OAuth2PasswordRequestForm = Depends(), service: AuthService = Depends(get_auth_service)):
-    data = LoginInput(email=form_data.username, password=form_data.password)
+def login(data: LoginInput, service: AuthService = Depends(get_auth_service)):
     return service.login(data)
 
 @router.post("/refresh", response_model=TokenResponse)
