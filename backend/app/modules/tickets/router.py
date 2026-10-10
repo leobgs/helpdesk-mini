@@ -141,6 +141,19 @@ async def websocket_endpoint(
     try:
         while True:
             data = await websocket.receive_json()
+            
+            # Handle typing event
+            if data.get("type") == "typing":
+                await manager.broadcast_to_ticket(ticket_id, {
+                    "type": "typing",
+                    "data": {
+                        "user_id": user.id,
+                        "name": user.name,
+                        "is_typing": data.get("is_typing", False)
+                    }
+                })
+                continue
+
             if "body" not in data:
                 await websocket.send_json({"type": "error", "message": "Missing 'body' field"})
                 continue
