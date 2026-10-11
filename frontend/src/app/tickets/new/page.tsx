@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
+import { toast } from 'sonner';
 
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,21 +28,27 @@ const createTicketSchema = z.object({
 
 export default function CreateTicketPage() {
   const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   const form = useForm<z.infer<typeof createTicketSchema>>({
     resolver: zodResolver(createTicketSchema),
     defaultValues: { subject: '', category: '', priority: 'medium', message: '' },
   });
 
-  async function onSubmit(values: z.infer<typeof createTicketSchema>) {
-    setError(null);
-    try {
+  const createTicketMutation = useMutation({
+    mutationFn: async (values: z.infer<typeof createTicketSchema>) => {
       const { data } = await api.post('/api/v1/tickets', values);
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success('Ticket created successfully');
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
       router.push(`/tickets/${data.id}`);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to create ticket. Please try again.');
-    }
+    },
+  });
+
+  function onSubmit(values: z.infer<typeof createTicketSchema>) {
+    createTicketMutation.mutate(values);
   }
 
   return (
@@ -60,7 +67,12 @@ export default function CreateTicketPage() {
             <CardDescription>Describe your issue or request in detail so we can help you.</CardDescription>
           </CardHeader>
           <CardContent>
-            {error && <div className="text-sm font-medium text-red-500 mb-4 p-3 bg-red-50 rounded-md border border-red-200">{error}</div>}
+            {createTicketMutation.isError && (
+              <div className="text-sm font-medium text-red-500 mb-4 p-3 bg-red-50 rounded-md border border-red-200">
+                {(createTicketMutation.error as any)?.response?.data?.detail ||
+                  'Failed to create ticket. Please try again.'}
+              </div>
+            )}
             
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
@@ -146,8 +158,8 @@ export default function CreateTicketPage() {
                 />
                 
                 <div className="flex justify-end pt-4">
-                  <Button type="submit" disabled={form.formState.isSubmitting}>
-                    {form.formState.isSubmitting ? 'Creating...' : 'Submit Ticket'}
+                  <Button type="submit" disabled={createTicketMutation.isPending}>
+                    {createTicketMutation.isPending ? 'Creating...' : 'Submit Ticket'}
                   </Button>
                 </div>
               </form>
