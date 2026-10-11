@@ -1,29 +1,52 @@
-'use client';
+"use client";
 
-import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
-import { toast } from 'sonner';
+import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
+import { toast } from "sonner";
 
-import { Button, buttonVariants } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/card";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
-import { api } from '@/lib/axios';
-import { RoleGuard } from '@/components/auth/AuthGuard';
+import { api } from "@/lib/axios";
+import { RoleGuard } from "@/components/auth/AuthGuard";
 
 const createTicketSchema = z.object({
-  subject: z.string().min(5, { message: 'Subject must be at least 5 characters' }),
-  category: z.string().min(2, { message: 'Please select or enter a category' }),
-  priority: z.enum(['low', 'medium', 'high']),
-  message: z.string().min(10, { message: 'Message must be at least 10 characters' }),
+  subject: z
+    .string()
+    .min(5, { message: "Subject must be at least 5 characters" }),
+  category: z.string().min(2, { message: "Please select or enter a category" }),
+  priority: z.enum(["low", "medium", "high"]),
+  message: z
+    .string()
+    .min(10, { message: "Message must be at least 10 characters" }),
 });
 
 export default function CreateTicketPage() {
@@ -32,17 +55,22 @@ export default function CreateTicketPage() {
 
   const form = useForm<z.infer<typeof createTicketSchema>>({
     resolver: zodResolver(createTicketSchema),
-    defaultValues: { subject: '', category: '', priority: 'medium', message: '' },
+    defaultValues: {
+      subject: "",
+      category: "",
+      priority: "medium",
+      message: "",
+    },
   });
 
   const createTicketMutation = useMutation({
     mutationFn: async (values: z.infer<typeof createTicketSchema>) => {
-      const { data } = await api.post('/api/v1/tickets', values);
+      const { data } = await api.post("/api/v1/tickets", values);
       return data;
     },
     onSuccess: (data) => {
-      toast.success('Ticket created successfully');
-      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+      toast.success("Ticket created successfully");
+      queryClient.invalidateQueries({ queryKey: ["tickets"] });
       router.push(`/tickets/${data.id}`);
     },
   });
@@ -52,30 +80,40 @@ export default function CreateTicketPage() {
   }
 
   return (
-    <RoleGuard allowedRoles={['customer']}>
+    <RoleGuard allowedRoles={["customer"]}>
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="flex items-center gap-4">
-          <Link href="/tickets" className={buttonVariants({ variant: "ghost", size: "icon" })}>
+          <Link
+            href="/tickets"
+            className={buttonVariants({ variant: "ghost", size: "icon" })}
+          >
             <ArrowLeft className="h-4 w-4" />
           </Link>
-          <h1 className="text-2xl font-bold text-slate-800">Create New Ticket</h1>
+          <h1 className="text-2xl font-bold text-slate-800">
+            Create New Ticket
+          </h1>
         </div>
 
         <Card className="shadow-sm border-slate-200">
           <CardHeader>
             <CardTitle>Ticket Details</CardTitle>
-            <CardDescription>Describe your issue or request in detail so we can help you.</CardDescription>
+            <CardDescription>
+              Describe your issue or request in detail so we can help you.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {createTicketMutation.isError && (
               <div className="text-sm font-medium text-red-500 mb-4 p-3 bg-red-50 rounded-md border border-red-200">
                 {(createTicketMutation.error as any)?.response?.data?.detail ||
-                  'Failed to create ticket. Please try again.'}
+                  "Failed to create ticket. Please try again."}
               </div>
             )}
-            
+
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+              <form
+                onSubmit={form.handleSubmit(onSubmit)}
+                className="space-y-5"
+              >
                 <FormField
                   control={form.control}
                   name="subject"
@@ -83,13 +121,16 @@ export default function CreateTicketPage() {
                     <FormItem>
                       <FormLabel>Subject</FormLabel>
                       <FormControl>
-                        <Input placeholder="E.g. Unable to login to dashboard" {...field} />
+                        <Input
+                          placeholder="E.g. Unable to login to dashboard"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <FormField
                     control={form.control}
@@ -97,17 +138,26 @@ export default function CreateTicketPage() {
                     render={({ field }: any) => (
                       <FormItem>
                         <FormLabel>Category</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
                           <FormControl>
                             <SelectTrigger className="bg-white">
                               <SelectValue placeholder="Select category" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="technical">Technical Support</SelectItem>
+                            <SelectItem value="technical">
+                              Technical Support
+                            </SelectItem>
                             <SelectItem value="billing">Billing</SelectItem>
-                            <SelectItem value="general">General Inquiry</SelectItem>
-                            <SelectItem value="feature">Feature Request</SelectItem>
+                            <SelectItem value="general">
+                              General Inquiry
+                            </SelectItem>
+                            <SelectItem value="feature">
+                              Feature Request
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -121,7 +171,10 @@ export default function CreateTicketPage() {
                     render={({ field }: any) => (
                       <FormItem>
                         <FormLabel>Priority</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
                           <FormControl>
                             <SelectTrigger className="bg-white">
                               <SelectValue placeholder="Select priority" />
@@ -146,20 +199,25 @@ export default function CreateTicketPage() {
                     <FormItem>
                       <FormLabel>Message</FormLabel>
                       <FormControl>
-                        <Textarea 
+                        <Textarea
                           placeholder="Please provide as much detail as possible..."
-                          className="min-h-[150px] resize-y"
-                          {...field} 
+                          className="min-h-37.5 resize-y"
+                          {...field}
                         />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                
+
                 <div className="flex justify-end pt-4">
-                  <Button type="submit" disabled={createTicketMutation.isPending}>
-                    {createTicketMutation.isPending ? 'Creating...' : 'Submit Ticket'}
+                  <Button
+                    type="submit"
+                    disabled={createTicketMutation.isPending}
+                  >
+                    {createTicketMutation.isPending
+                      ? "Creating..."
+                      : "Submit Ticket"}
                   </Button>
                 </div>
               </form>
