@@ -33,6 +33,22 @@ export interface Ticket {
   assigned_agent?: User;
 }
 
+export interface PaginationMeta {
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  meta: PaginationMeta;
+}
+
+export type PaginatedTickets = PaginatedResponse<Ticket>;
+export type PaginatedUsers = PaginatedResponse<User>;
+
+
 export interface Message {
   id: number;
   ticket_id: number;

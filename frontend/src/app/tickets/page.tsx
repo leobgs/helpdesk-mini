@@ -1,15 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
-import { PlusCircle, Search } from "lucide-react";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { PlusCircle, Search, X, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { api } from "@/lib/axios";
-import { Ticket, Status } from "@/types";
+import { Ticket, PaginatedTickets, Status } from "@/types";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
   Table,
@@ -27,14 +28,34 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 
-const fetchTickets = async (status?: string) => {
-  const url =
-    status && status !== "all"
-      ? `/api/v1/tickets?status=${status}`
-      : "/api/v1/tickets";
-  const { data } = await api.get<Ticket[]>(url);
+interface FetchTicketsParams {
+  status?: string;
+  search?: string;
+  page: number;
+  limit: number;
+}
+
+const fetchTickets = async ({
+  status,
+  search,
+  page,
+  limit,
+}: FetchTicketsParams) => {
+  const params = new URLSearchParams();
+  if (status && status !== "all") {
+    params.append("status", status);
+  }
+  if (search && search.trim()) {
+    params.append("search", search.trim());
+  }
+  params.append("page", page.toString());
+  params.append("limit", limit.toString());
+
+  const { data } = await api.get<PaginatedTickets>(
+    `/api/v1/tickets?${params.toString()}`
+  );
   return data;
 };
 
@@ -72,18 +93,61 @@ const getPriorityBadge = (priority: string) => {
 };
 
 export default function TicketsPage() {
-  const [statusFilter, setStatusFilter] = useState<string>("all");
   const { user } = useAuth();
+  const [searchInput, setSearchInput] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [page, setPage] = useState<number>(1);
+  const [limit, setLimit] = useState<number>(10);
+
+  // Debounce search input by 300ms
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchInput);
+      setPage(1); // Reset to page 1 on new search
+    }, 300);
+
+    return () => clearTimeout(handler);
+  }, [searchInput]);
+
+  const handleStatusChange = (v: string | null) => {
+    setStatusFilter(v || "all");
+    setPage(1); // Reset to page 1 on status change
+  };
+
+  const handleClearFilters = () => {
+    setSearchInput("");
+    setDebouncedSearch("");
+    setStatusFilter("all");
+    setPage(1);
+  };
 
   const {
-    data: tickets,
+    data,
     isLoading,
+    isFetching,
     isError,
     error,
   } = useQuery({
-    queryKey: ["tickets", statusFilter],
-    queryFn: () => fetchTickets(statusFilter),
+    queryKey: [
+      "tickets",
+      { status: statusFilter, search: debouncedSearch, page, limit },
+    ],
+    queryFn: () =>
+      fetchTickets({
+        status: statusFilter,
+        search: debouncedSearch,
+        page,
+        limit,
+      }),
+    placeholderData: keepPreviousData,
   });
+
+  const tickets = data?.data || [];
+  const total = data?.meta?.total || 0;
+  const totalPages = data?.meta?.total_pages || 0;
+  const startItem = total === 0 ? 0 : (page - 1) * limit + 1;
+  const endItem = Math.min(page * limit, total);
 
   return (
     <AuthGuard>
@@ -93,12 +157,31 @@ export default function TicketsPage() {
             Tickets
           </h1>
 
-          <div className="flex items-center gap-3 w-full sm:w-auto">
-            <Select
-              value={statusFilter}
-              onValueChange={(v) => setStatusFilter(v || "all")}
-            >
-              <SelectTrigger className="w-full sm:w-45 bg-white">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+            {/* Search Box */}
+            <div className="relative flex-1 sm:w-64">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400 pointer-events-none" />
+              <Input
+                type="text"
+                placeholder="Search subject or category..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="pl-9 pr-8 bg-white h-9 text-sm"
+              />
+              {searchInput && (
+                <button
+                  type="button"
+                  onClick={() => setSearchInput("")}
+                  className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+
+            {/* Status Filter */}
+            <Select value={statusFilter} onValueChange={handleStatusChange}>
+              <SelectTrigger className="w-full sm:w-40 bg-white h-9">
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
               <SelectContent>
@@ -110,12 +193,13 @@ export default function TicketsPage() {
               </SelectContent>
             </Select>
 
+            {/* New Ticket button for customer */}
             {user?.role === "customer" && (
               <Link
                 href="/tickets/new"
                 className={cn(
                   buttonVariants({ variant: "default" }),
-                  "shrink-0",
+                  "shrink-0 h-9",
                 )}
               >
                 <PlusCircle className="mr-2 h-4 w-4" />
@@ -128,7 +212,7 @@ export default function TicketsPage() {
         <Card className="shadow-sm border-slate-200">
           <CardContent className="p-0">
             {isLoading ? (
-              <div className="p-8 text-center text-slate-500 animate-pulse">
+              <div className="p-12 text-center text-slate-500 animate-pulse">
                 Loading tickets...
               </div>
             ) : isError ? (
@@ -138,10 +222,24 @@ export default function TicketsPage() {
             ) : !tickets || tickets.length === 0 ? (
               <div className="p-12 flex flex-col items-center justify-center text-slate-500">
                 <Search className="h-10 w-10 text-slate-300 mb-3" />
-                <p className="text-lg font-medium">No tickets found.</p>
-                <p className="text-sm">
-                  Try changing your filters or create a new ticket.
+                <p className="text-lg font-medium text-slate-800">
+                  No tickets found
                 </p>
+                <p className="text-sm text-slate-500 max-w-sm text-center mt-1">
+                  {debouncedSearch || statusFilter !== "all"
+                    ? "No tickets match your current filters. Try adjusting your search query or clear filters."
+                    : "No tickets have been created yet."}
+                </p>
+                {(debouncedSearch || statusFilter !== "all") && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleClearFilters}
+                    className="mt-4"
+                  >
+                    Clear Filters
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -165,7 +263,7 @@ export default function TicketsPage() {
                       </TableHead>
                     </TableRow>
                   </TableHeader>
-                  <TableBody>
+                  <TableBody className={cn(isFetching && "opacity-70 transition-opacity")}>
                     {tickets.map((ticket) => (
                       <TableRow
                         key={ticket.id}
@@ -230,6 +328,84 @@ export default function TicketsPage() {
                     ))}
                   </TableBody>
                 </Table>
+              </div>
+            )}
+
+            {/* Pagination Controls */}
+            {total > 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t bg-slate-50/50 text-sm text-slate-600">
+                <div className="flex items-center gap-2 text-xs sm:text-sm">
+                  <span>
+                    Showing{" "}
+                    <strong className="font-semibold text-slate-900">
+                      {startItem}
+                    </strong>{" "}
+                    to{" "}
+                    <strong className="font-semibold text-slate-900">
+                      {endItem}
+                    </strong>{" "}
+                    of{" "}
+                    <strong className="font-semibold text-slate-900">
+                      {total}
+                    </strong>{" "}
+                    tickets
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-500">Rows:</span>
+                    <Select
+                      value={limit.toString()}
+                      onValueChange={(val: string | null) => {
+                        if (val) {
+                          setLimit(Number(val));
+                          setPage(1);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-8 w-18 bg-white text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">5</SelectItem>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="25">25</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 px-2.5 bg-white text-xs"
+                      onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+                      disabled={page <= 1}
+                    >
+                      <ChevronLeft className="h-4 w-4 mr-1" />
+                      Prev
+                    </Button>
+
+                    <div className="px-3 text-xs font-medium text-slate-700 whitespace-nowrap">
+                      Page {page} of {totalPages || 1}
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 px-2.5 bg-white text-xs"
+                      onClick={() =>
+                        setPage((prev) => Math.min(prev + 1, totalPages))
+                      }
+                      disabled={page >= totalPages}
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4 ml-1" />
+                    </Button>
+                  </div>
+                </div>
               </div>
             )}
           </CardContent>
