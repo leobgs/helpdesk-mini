@@ -2,11 +2,11 @@ from fastapi import HTTPException
 from app.db.models import Ticket, Message, PriorityEnum, StatusEnum, User, RoleEnum
 from app.modules.tickets.schemas import TicketCreate, TicketUpdate
 from app.modules.tickets.repository import TicketRepository
+from app.core.pagination import paginate
 from sqlalchemy.orm import Query
 from sqlalchemy import or_
 from datetime import datetime
 from typing import Optional
-import math
 
 class TicketService:
     def __init__(self, db):
@@ -52,24 +52,7 @@ class TicketService:
                 )
             )
 
-        total = query.count()
-        total_pages = math.ceil(total / limit) if total > 0 else 0
-        items = (
-            query.order_by(Ticket.updated_at.desc())
-            .offset((page - 1) * limit)
-            .limit(limit)
-            .all()
-        )
-
-        return {
-            "data": items,
-            "meta": {
-                "total": total,
-                "page": page,
-                "limit": limit,
-                "total_pages": total_pages,
-            },
-        }
+        return paginate(query.order_by(Ticket.updated_at.desc()), page=page, limit=limit)
 
     def get_ticket(self, query: Query, ticket_id: int):
         ticket = query.filter(Ticket.id == ticket_id).first()

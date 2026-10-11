@@ -27,15 +27,10 @@ class TicketOut(BaseModel):
     class Config:
         from_attributes = True
 
-class PaginationMeta(BaseModel):
-    total: int
-    page: int
-    limit: int
-    total_pages: int
+from app.core.pagination import PaginationMeta, PaginatedResponse
 
-class PaginatedTicketsOut(BaseModel):
-    data: List[TicketOut]
-    meta: PaginationMeta
+class PaginatedTicketsOut(PaginatedResponse[TicketOut]):
+    pass
 
 class TicketUpdate(BaseModel):
     status: Optional[str] = None
