@@ -3,8 +3,10 @@ from app.db.models import Ticket, Message, PriorityEnum, StatusEnum, User, RoleE
 from app.modules.tickets.schemas import TicketCreate, TicketUpdate
 from app.modules.tickets.repository import TicketRepository
 from sqlalchemy.orm import Query
+from sqlalchemy import or_
 from datetime import datetime
-from sqlalchemy.orm import Query
+from typing import Optional
+import math
 
 class TicketService:
     def __init__(self, db):
@@ -28,13 +30,46 @@ class TicketService:
         )
         return self.repo.create_ticket_and_message(ticket, message)
 
-    def list_tickets(self, query: Query, status_filter: str = None):
-        if status_filter:
+    def list_tickets(
+        self,
+        query: Query,
+        status_filter: Optional[str] = None,
+        search: Optional[str] = None,
+        page: int = 1,
+        limit: int = 10,
+    ):
+        if status_filter and status_filter != "all":
             if status_filter not in [s.value for s in StatusEnum]:
                 raise HTTPException(status_code=422, detail="Invalid status filter")
             query = query.filter(Ticket.status == StatusEnum(status_filter))
-            
-        return query.order_by(Ticket.updated_at.desc()).all()
+
+        if search and search.strip():
+            term = f"%{search.strip()}%"
+            query = query.filter(
+                or_(
+                    Ticket.subject.ilike(term),
+                    Ticket.category.ilike(term)
+                )
+            )
+
+        total = query.count()
+        total_pages = math.ceil(total / limit) if total > 0 else 0
+        items = (
+            query.order_by(Ticket.updated_at.desc())
+            .offset((page - 1) * limit)
+            .limit(limit)
+            .all()
+        )
+
+        return {
+            "data": items,
+            "meta": {
+                "total": total,
+                "page": page,
+                "limit": limit,
+                "total_pages": total_pages,
+            },
+        }
 
     def get_ticket(self, query: Query, ticket_id: int):
         ticket = query.filter(Ticket.id == ticket_id).first()

@@ -1,9 +1,16 @@
-from fastapi import APIRouter, Depends, status, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import APIRouter, Depends, status, WebSocket, WebSocketDisconnect, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.db.database import get_db
 from app.db.models import Ticket, User, RoleEnum
-from app.modules.tickets.schemas import TicketCreate, TicketOut, TicketUpdate, MessageOut, MessageCreate
+from app.modules.tickets.schemas import (
+    TicketCreate,
+    TicketOut,
+    TicketUpdate,
+    MessageOut,
+    MessageCreate,
+    PaginatedTicketsOut,
+)
 from app.modules.tickets.service import TicketService
 from app.api.deps import get_current_user, RoleChecker, get_ticket_query
 from app.core.websocket import manager
@@ -26,15 +33,28 @@ def create_ticket(
 ):
     return service.create_ticket(data, current_user)
 
-@router.get("", response_model=List[TicketOut])
+@router.get("", response_model=PaginatedTicketsOut)
 def list_tickets(
-    status_filter: Optional[str] = None,
+    status: Optional[str] = Query(None, description="Filter by status (open, in_progress, resolved, closed)"),
+    status_filter: Optional[str] = Query(None, description="Alias for status filter"),
+    search: Optional[str] = Query(None, description="Search by subject or category"),
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: int = Query(10, ge=1, le=100, description="Items limit per page"),
+    page_size: Optional[int] = Query(None, description="Alias for limit"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     service: TicketService = Depends(get_ticket_service)
 ):
+    effective_status = status or status_filter
+    effective_limit = page_size if page_size is not None else limit
     query = get_ticket_query(db, current_user)
-    return service.list_tickets(query, status_filter)
+    return service.list_tickets(
+        query=query,
+        status_filter=effective_status,
+        search=search,
+        page=page,
+        limit=effective_limit
+    )
 
 @router.get("/{ticket_id}", response_model=TicketOut)
 def get_ticket(

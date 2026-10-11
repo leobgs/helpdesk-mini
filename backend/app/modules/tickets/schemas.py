@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel
 from app.modules.users.schemas import UserOut
 
@@ -26,6 +26,16 @@ class TicketOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+class PaginationMeta(BaseModel):
+    total: int
+    page: int
+    limit: int
+    total_pages: int
+
+class PaginatedTicketsOut(BaseModel):
+    data: List[TicketOut]
+    meta: PaginationMeta
 
 class TicketUpdate(BaseModel):
     status: Optional[str] = None
