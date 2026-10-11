@@ -1,11 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { PlusCircle, Users } from 'lucide-react';
+import { toast } from 'sonner';
 
 import { api } from '@/lib/axios';
 import { User, Role } from '@/types';
@@ -30,7 +31,6 @@ const createUserSchema = z.object({
 export default function AdminUsersPage() {
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const { data: users, isLoading, isError, error: fetchError } = useQuery({
     queryKey: ['users'],
@@ -45,16 +45,21 @@ export default function AdminUsersPage() {
     defaultValues: { name: '', email: '', password: '', role: 'customer' },
   });
 
-  async function onSubmit(values: z.infer<typeof createUserSchema>) {
-    setError(null);
-    try {
-      await api.post('/api/v1/users', values);
+  const createUserMutation = useMutation({
+    mutationFn: async (values: z.infer<typeof createUserSchema>) => {
+      const { data } = await api.post('/api/v1/users', values);
+      return data;
+    },
+    onSuccess: () => {
+      toast.success('User created successfully');
       queryClient.invalidateQueries({ queryKey: ['users'] });
       setIsDialogOpen(false);
       form.reset();
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to create user.');
-    }
+    },
+  });
+
+  function onSubmit(values: z.infer<typeof createUserSchema>) {
+    createUserMutation.mutate(values);
   }
 
   const getRoleBadge = (role: Role) => {
@@ -75,7 +80,16 @@ export default function AdminUsersPage() {
             Manage Users
           </h1>
           
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog
+            open={isDialogOpen}
+            onOpenChange={(open) => {
+              setIsDialogOpen(open);
+              if (!open) {
+                createUserMutation.reset();
+                form.reset();
+              }
+            }}
+          >
             <Button onClick={() => setIsDialogOpen(true)}>
               <PlusCircle className="mr-2 h-4 w-4" />
               Add User
@@ -88,7 +102,11 @@ export default function AdminUsersPage() {
                 </DialogDescription>
               </DialogHeader>
               
-              {error && <div className="text-sm font-medium text-red-500 p-3 bg-red-50 rounded-md border border-red-200">{error}</div>}
+              {createUserMutation.isError && (
+                <div className="text-sm font-medium text-red-500 p-3 bg-red-50 rounded-md border border-red-200">
+                  {(createUserMutation.error as any)?.response?.data?.detail || 'Failed to create user.'}
+                </div>
+              )}
               
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -157,8 +175,8 @@ export default function AdminUsersPage() {
                   />
                   
                   <div className="flex justify-end pt-2">
-                    <Button type="submit" disabled={form.formState.isSubmitting}>
-                      {form.formState.isSubmitting ? 'Saving...' : 'Save User'}
+                    <Button type="submit" disabled={createUserMutation.isPending}>
+                      {createUserMutation.isPending ? 'Saving...' : 'Save User'}
                     </Button>
                   </div>
                 </form>
