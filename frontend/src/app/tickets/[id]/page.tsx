@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef, use } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect, useRef, use, Suspense } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import Cookies from "js-cookie";
 import { Send, ArrowLeft, AlertCircle } from "lucide-react";
 import Link from "next/link";
@@ -35,6 +36,22 @@ export default function TicketDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-[calc(100vh-100px)] items-center justify-center">
+          <div className="animate-pulse text-slate-500 font-medium">
+            Loading ticket page...
+          </div>
+        </div>
+      }
+    >
+      <TicketDetailContent params={params} />
+    </Suspense>
+  );
+}
+
+function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const { user } = useAuth();
@@ -173,24 +190,32 @@ export default function TicketDetailPage({
     ws.send(JSON.stringify({ type: "typing", is_typing: false }));
   };
 
-  const handleUpdateStatus = async (status: Status) => {
-    try {
-      await api.patch(`/api/v1/tickets/${id}`, { status });
+  // Update ticket status mutation
+  const updateStatusMutation = useMutation({
+    mutationFn: async (status: Status) => {
+      const { data } = await api.patch(`/api/v1/tickets/${id}`, { status });
+      return data;
+    },
+    onSuccess: () => {
+      toast.success("Ticket status updated successfully");
       queryClient.invalidateQueries({ queryKey: ["ticket", id] });
-    } catch (error) {
-      console.error("Failed to update status", error);
-    }
-  };
+    },
+  });
 
-  const handleTakeTicket = async () => {
-    if (!user) return;
-    try {
-      await api.patch(`/api/v1/tickets/${id}`, { assigned_agent_id: user.id });
+  // Assign ticket to current agent mutation
+  const takeTicketMutation = useMutation({
+    mutationFn: async () => {
+      if (!user) return;
+      const { data } = await api.patch(`/api/v1/tickets/${id}`, {
+        assigned_agent_id: user.id,
+      });
+      return data;
+    },
+    onSuccess: () => {
+      toast.success("Ticket assigned to you");
       queryClient.invalidateQueries({ queryKey: ["ticket", id] });
-    } catch (error) {
-      console.error("Failed to take ticket", error);
-    }
-  };
+    },
+  });
 
   const isClosed = ticket?.status === "closed";
 
@@ -380,11 +405,14 @@ export default function TicketDetailPage({
                 <>
                   {!ticket.assigned_agent_id && (
                     <Button
-                      onClick={handleTakeTicket}
+                      onClick={() => takeTicketMutation.mutate()}
                       variant="outline"
                       className="w-full justify-start"
+                      disabled={takeTicketMutation.isPending}
                     >
-                      Take Ticket
+                      {takeTicketMutation.isPending
+                        ? "Taking Ticket..."
+                        : "Take Ticket"}
                     </Button>
                   )}
 
@@ -394,7 +422,10 @@ export default function TicketDetailPage({
                     </label>
                     <Select
                       value={ticket.status}
-                      onValueChange={(val) => handleUpdateStatus(val as Status)}
+                      onValueChange={(val) =>
+                        updateStatusMutation.mutate(val as Status)
+                      }
+                      disabled={updateStatusMutation.isPending}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -413,11 +444,14 @@ export default function TicketDetailPage({
               {/* Customer Actions */}
               {user?.role === "customer" && ticket.status === "resolved" && (
                 <Button
-                  onClick={() => handleUpdateStatus("open")}
+                  onClick={() => updateStatusMutation.mutate("open")}
                   variant="outline"
                   className="w-full"
+                  disabled={updateStatusMutation.isPending}
                 >
-                  Reopen Ticket
+                  {updateStatusMutation.isPending
+                    ? "Reopening..."
+                    : "Reopen Ticket"}
                 </Button>
               )}
               {user?.role === "customer" &&

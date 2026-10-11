@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation } from "@tanstack/react-query";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,7 @@ import {
 
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/axios";
+import { toast } from "sonner";
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Invalid email address" }),
@@ -39,7 +41,6 @@ const loginSchema = z.object({
 export default function LoginPage() {
   const { user, login } = useAuth();
   const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -52,22 +53,23 @@ export default function LoginPage() {
     defaultValues: { email: "", password: "" },
   });
 
-  async function onSubmit(values: z.infer<typeof loginSchema>) {
-    setError(null);
-    try {
+  const loginMutation = useMutation({
+    mutationFn: async (values: z.infer<typeof loginSchema>) => {
       const { data } = await api.post("/api/v1/auth/login", {
         email: values.email,
         password: values.password,
       });
+      return data;
+    },
+    onSuccess: (data) => {
       login(data);
+      toast.success("Login succesfully");
       router.push("/tickets");
-    } catch (err: any) {
-      if (err.response?.data?.detail) {
-        setError(err.response.data.detail);
-      } else {
-        setError("Login failed. Please check your credentials.");
-      }
-    }
+    },
+  });
+
+  function onSubmit(values: z.infer<typeof loginSchema>) {
+    loginMutation.mutate(values);
   }
 
   if (user) return null; // Avoid flashing the login page while redirecting
@@ -82,9 +84,10 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {error && (
+          {loginMutation.isError && (
             <div className="text-sm font-medium text-red-500 mb-4 p-3 bg-red-50 rounded-md border border-red-200">
-              {error}
+              {(loginMutation.error as any)?.response?.data?.detail ||
+                "Login failed. Please check your credentials."}
             </div>
           )}
           <Form {...form}>
@@ -126,9 +129,9 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 className="w-full"
-                disabled={form.formState.isSubmitting}
+                disabled={loginMutation.isPending}
               >
-                {form.formState.isSubmitting ? "Signing in..." : "Sign In"}
+                {loginMutation.isPending ? "Signing in..." : "Sign In"}
               </Button>
             </form>
           </Form>

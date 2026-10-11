@@ -20,8 +20,13 @@ export const metadata: Metadata = {
 import QueryProvider from "@/providers/QueryProvider";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { Navbar } from "@/components/layout/Navbar";
+import { Toaster } from "@/components/ui/sonner";
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html
       lang="en"
@@ -36,6 +41,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </main>
           </AuthProvider>
         </QueryProvider>
+        <Toaster position="top-center" richColors />
       </body>
     </html>
   );
