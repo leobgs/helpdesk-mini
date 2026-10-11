@@ -11,6 +11,9 @@ class UserRepository:
     def get_tenant_users(self, business_id: int):
         return self.db.query(User).filter(User.business_id == business_id).all()
 
+    def get_tenant_users_query(self, business_id: int):
+        return self.db.query(User).filter(User.business_id == business_id)
+
     def create(self, business_id: int, name: str, email: str, password_hash: str, role: str) -> User:
         new_user = User(
             business_id=business_id,

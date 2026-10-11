@@ -21,3 +21,8 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
     role: str
+
+from app.core.pagination import PaginatedResponse
+
+class PaginatedUsersOut(PaginatedResponse[UserOut]):
+    pass
