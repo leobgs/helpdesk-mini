@@ -1,12 +1,12 @@
 # HelpDesk Mini
 
-A minimal, secure, and real-time customer support platform built with **FastAPI** and **Next.js 16**, featuring role-based access control (RBAC), multi-tenancy business support, live messaging via WebSocket, and server-side search & pagination.
+A minimal, secure, and real-time customer support platform built with **FastAPI** and **Next.js 16**, featuring role-based access control (RBAC), multi-tenancy business isolation, persistent real-time chat via WebSocket with HTTP fallback, server-side search & pagination, and multi-database support (PostgreSQL 15 & SQLite).
 
 ---
 
 ## Live Deployment & Links
 
-| Service                   | Environment / URL                                                            | Description                     |
+| Service                   | Environment / URL                                                            | Deskripsi                       |
 | :------------------------ | :--------------------------------------------------------------------------- | :------------------------------ |
 | **Frontend (Vercel)**     | [https://helpdesk-mini-two.vercel.app](https://helpdesk-mini-two.vercel.app) | Production Web App              |
 | **Frontend (Docker VPS)** | `http://103.189.234.83:3001`                                                 | Self-hosted Frontend Container  |
@@ -17,86 +17,132 @@ A minimal, secure, and real-time customer support platform built with **FastAPI*
 
 ## Demo Accounts
 
-All demo accounts share the default password: **`password123`**
+Semua akun demo menggunakan password default: **`password123`**
 
 ### Business 1: Tech Corp (`tech-corp`)
 
-| Role           | Email                    | Password      | Permissions                                                   |
+| Role           | Email                    | Password      | Hak Akses & Kemampuan                                         |
 | :------------- | :----------------------- | :------------ | :------------------------------------------------------------ |
-| **Admin**      | `admin@techcorp.com`     | `password123` | Full access, user management, assign agents, view all tickets |
-| **Agent**      | `agent@techcorp.com`     | `password123` | Handle assigned tickets, update ticket status, real-time chat |
-| **Customer 1** | `customer1@techcorp.com` | `password123` | Create support tickets, view own tickets, live chat           |
-| **Customer 2** | `customer2@techcorp.com` | `password123` | Separate customer account for testing multi-user chat         |
+| **Admin**      | `admin@techcorp.com`     | `password123` | Akses penuh, manajemen user, assign agent, kelola semua tiket |
+| **Agent**      | `agent@techcorp.com`     | `password123` | Ambil tiket (*Take Ticket*), update status, live chat 2 arah  |
+| **Customer 1** | `customer1@techcorp.com` | `password123` | Buat tiket baru, lihat tiket milik sendiri, live chat         |
+| **Customer 2** | `customer2@techcorp.com` | `password123` | Akun customer terpisah untuk simulasi multi-user              |
 
 ### Business 2: Bio Labs (`bio-labs`)
 
-| Role           | Email                   | Password      | Permissions             |
-| :------------- | :---------------------- | :------------ | :---------------------- |
-| **Admin**      | `admin@biolabs.com`     | `password123` | Isolated business admin |
-| **Agent**      | `agent@biolabs.com`     | `password123` | Isolated business agent |
-| **Customer 1** | `customer1@biolabs.com` | `password123` | Customer in Bio Labs    |
-| **Customer 2** | `customer2@biolabs.com` | `password123` | Customer in Bio Labs    |
+| Role           | Email                   | Password      | Hak Akses & Kemampuan          |
+| :------------- | :---------------------- | :------------ | :----------------------------- |
+| **Admin**      | `admin@biolabs.com`     | `password123` | Admin terisolasi pada Bio Labs |
+| **Agent**      | `agent@biolabs.com`     | `password123` | Agent terisolasi pada Bio Labs |
+| **Customer 1** | `customer1@biolabs.com` | `password123` | Customer terisolasi Bio Labs   |
+| **Customer 2** | `customer2@biolabs.com` | `password123` | Customer terisolasi Bio Labs   |
 
 ---
 
-## Key Features
+## Fitur-Fitur Utama (Key Features)
 
-- **Authentication & RBAC:** JWT authentication with access and refresh tokens. Role-based access control protecting endpoints and pages (`admin`, `agent`, `customer`).
-- **Multi-Tenancy:** Data isolation per business/tenant (`Tech Corp`, `Bio Labs`).
-- **Ticket Lifecycle Management:** Create, categorize, prioritize, and track ticket status (`open`, `in_progress`, `resolved`, `closed`).
-- **Real-Time Live Chat:** Two-way real-time messaging powered by WebSockets (`/ws/tickets/{id}`).
-- **Server-side Search & Pagination:** Debounced text search with configurable page limits (`5`, `10`, `25`, `50`) for both tickets and user management.
-- **Full Dockerization:** Production-ready multi-stage Docker build for Next.js (`standalone` output) and FastAPI backend orchestrated with Docker Compose.
+### 1. Autentikasi & Role-Based Access Control (RBAC)
+- Otentikasi berbasis **JWT** dengan pemisahan *Access Token* (30 menit) dan *Refresh Token* (7 hari).
+- Endpoint dan halaman terproteksi berdasarkan role (`admin`, `agent`, `customer`).
+- Refresh token otomatis via Axios Interceptor di frontend saat access token kedaluwarsa tanpa perlu login ulang.
+
+### 2. Multi-Tenancy & Data Isolation
+- Isolasi data penuh per entitas bisnis/tenant (`Tech Corp` dan `Bio Labs`).
+- User dan tiket tidak dapat dilihat atau diakses oleh pengguna dari bisnis lain.
+
+### 3. Manajemen Tiket (Ticket Lifecycle Management)
+- Pembuatan tiket dengan subjek, kategori (*Support*, *Billing*, dll.), dan prioritas (*Low*, *Medium*, *High*, *Urgent*).
+- Siklus perubahan status tiket: `Open` ➔ `In Progress` ➔ `Resolved` ➔ `Closed`.
+- Tombol **Take Ticket** memudahkan agent untuk mengklaim tiket yang berstatus open.
+- Tiket yang telah berstatus `Closed` otomatis mengunci input chat.
+
+### 4. Persistent Real-Time Live Chat
+- **Bidirectional Streaming via WebSocket:** Koneksi langsung ke `/api/v1/tickets/ws/{id}` untuk pengiriman dan penerimaan pesan seketika.
+- **Zero Message Loss (HTTP Fallback):** Jika koneksi WebSocket gagal atau offline, pesan otomatis dikirimkan melalui endpoint REST API `POST /api/v1/tickets/{id}/messages`.
+- **Auto-Reconnection & Sinkronisasi:** WebSocket otomatis mencoba menyambung kembali setiap 3 detik jika terputus, dan me-refetch riwayat pesan terbaru dari server setelah berhasil terhubung kembali.
+- **Deduplikasi Pesan Handal:** Mengeliminasi masalah gelembung chat duplikat atau status pengiriman macet (*stuck "sending..."*) dengan deduplikasi ID pesan real-time.
+- **Real-Time Typing Indicator:** Menampilkan indikator pengetikan pengguna lain secara live dan otomatis hilang setelah jeda pengetikan 2 detik.
+- **Real-Time Ticket Status Broadcasting:** Perubahan status tiket (misal dari `In Progress` menjadi `Resolved`) langsung tersiar ke layar customer secara live tanpa reload halaman.
+- **Responsif:** Tampilan bubble chat adaptif untuk layar desktop maupun smartphone dengan auto-scroll ke pesan terbaru.
+
+### 5. Server-Side Pagination, Filtering & Search
+- **Daftar Tiket (`GET /api/v1/tickets`):** Pencarian teks ter-debounce, filter berdasarkan status dan prioritas, serta paginasi server-side.
+- **Manajemen Pengguna (`GET /api/v1/users`):** Pencarian user berdasarkan nama/email, filter berdasarkan role, dan paginasi data.
+- **Riwayat Pesan Tiket (`GET /api/v1/tickets/{id}/messages`):** Dukungan pengambilan pesan dengan parameter limit dan offset.
+
+### 6. Fleksibilitas Database (PostgreSQL 15 & SQLite)
+- Mendukung **PostgreSQL 15** untuk production dan **SQLite** untuk keperluan development cepat lokal.
+- Manajemen skema dan migrasi database terkelola rapi menggunakan **Alembic** (`alembic upgrade head`).
+- Script seeding awal (`python seed.py`) untuk inisialisasi data multi-tenant dan demo user secara instan.
+
+### 7. Kontainerisasi Penuh (Docker & Docker Compose)
+- Siap dijalankan dengan satu perintah menggunakan `docker compose up -d --build`.
+- Multi-stage Dockerfile untuk Next.js dengan output mode `standalone` untuk ukuran image yang ringan dan efisien.
+- Menjalankan 3 kontainer terisolasi: `backend` (FastAPI), `frontend` (Next.js), dan `db` (PostgreSQL 15 Alpine).
 
 ---
 
-## Tech Stack & Architecture
+## Tech Stack & Arsitektur
 
 ### Frontend
-
-- **Framework:** Next.js 16 (App Router, Standalone output)
-- **UI & Styling:** React 19, TailwindCSS, Radix UI primitives, Lucide Icons, Sonner toasts
-- **State & Data Fetching:** TanStack React Query v5, Axios with automatic token refresh interceptor
+- **Framework:** Next.js 16 (App Router, Standalone build)
+- **Library UI:** React 19, TailwindCSS, Radix UI primitives, Lucide React Icons
+- **Notifikasi:** Sonner Toasts
+- **State & Data Fetching:** TanStack React Query v5, Axios dengan interceptor auto-refresh token
+- **Cookies & Storage:** js-cookie
 
 ### Backend
-
 - **Framework:** FastAPI (Python 3.11)
-- **ORM & Database:** SQLAlchemy, SQLite (default) / PostgreSQL support
-- **Data Validation:** Pydantic v2
-- **Security:** Passlib (Bcrypt hashing), PyJWT
-- **Real-time:** Native FastAPI WebSockets
+- **ORM & Database:** SQLAlchemy 2.0, Alembic migrations, PostgreSQL (`psycopg2-binary`) / SQLite
+- **Skema & Validasi:** Pydantic v2 & Pydantic-Settings
+- **Keamanan & Hashing:** Passlib (Bcrypt), PyJWT
+- **Real-Time Engine:** Native FastAPI WebSockets & in-memory connection manager
 
-### Architecture
-
-Vertical feature-based layered architecture:
+### Arsitektur Backend (Vertical Layered Service)
+Setiap modul fitur di backend (`auth`, `users`, `tickets`) mengadopsi struktur terpisah secara vertikal sesuai aturan arsitektur:
 
 ```text
-Router (Presentation) ──> Service (Business Logic) ──> Repository (Data Access) ──> Schemas / Models
+backend/app/modules/<feature>/
+├── router.py      # Presentation Layer (FastAPI endpoints, WebSocket route, request handling)
+├── service.py     # Business Logic Layer (validasi bisnis, otorisasi, koordinasi alur data)
+├── repository.py  # Data Access Layer (SQLAlchemy queries, filter, pagination, DB commits)
+└── schemas.py     # Data Transfer Objects (Pydantic models untuk request & response)
 ```
 
 ---
 
-## Quick Start with Docker (Recommended)
+## Quick Start dengan Docker (Rekomendasi)
 
-Run both the frontend and backend with a single command:
+Jalankan seluruh stack (Frontend, Backend, dan PostgreSQL) dalam kontainer:
 
 ```bash
-# 1. Clone the repository
+# 1. Clone repository
 git clone https://github.com/leobgs/helpdesk-mini.git
 cd helpdesk-mini
 
-# 2. Build and run containers
+# 2. Siapkan file environment backend
+cp backend/.env.example backend/.env
+
+# Jika backend berjalan di Docker dan ingin terhubung ke container PostgreSQL:
+# Pastikan DATABASE_URL di backend/.env adalah:
+# DATABASE_URL=postgresql://user:password@db:5432/helpdesk-mini
+
+# 3. Build dan jalankan seluruh container
 docker compose up -d --build
 
-# 3. (First time setup) Seed demo database
+# 4. Jalankan migrasi database di container backend
+docker compose exec backend alembic upgrade head
+
+# 5. Jalankan seed data demo
 docker compose exec backend python seed.py
 ```
 
-- **Frontend:** [http://localhost:3001](http://localhost:3001) (or `http://localhost:3000`)
-- **Backend API & Swagger:** [http://localhost:8000/docs](http://localhost:8000/docs)
+### Akses Layanan:
+- **Frontend App:** [http://localhost:3001](http://localhost:3001)
+- **Backend API & Swagger Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
+- **PostgreSQL Database:** Host `localhost` (atau `db` di dalam Docker network), Port `5432`, User `user`, Password `password`, Database `helpdesk-mini`.
 
-To stop the containers:
-
+Untuk menghentikan kontainer:
 ```bash
 docker compose down
 ```
@@ -105,108 +151,154 @@ docker compose down
 
 ## Manual Local Development
 
-### 1. Backend Setup
+### 1. Setup Backend (FastAPI)
 
 ```bash
 cd backend
 
-# Create and activate virtual environment
-python3 -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+# Buat dan aktifkan virtual environment
+python3 -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
 
-# Setup environment variables
+# Siapkan konfigurasi environment
 cp .env.example .env
 
-# Seed initial database
+# Jalankan migrasi skema database
+alembic upgrade head
+
+# Seed data awal
 python seed.py
 
-# Start backend server
+# Jalankan backend development server
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
+Backend aktif di `http://localhost:8000` dan dokumentasi OpenAPI di `http://localhost:8000/docs`.
 
-Backend will run at `http://localhost:8000` (Swagger UI at `http://localhost:8000/docs`).
-
-### 2. Frontend Setup
+### 2. Setup Frontend (Next.js)
 
 ```bash
 cd frontend
 
-# Install dependencies
+# Install package dependencies
 npm install
 
-# Setup environment variables
+# Siapkan konfigurasi environment
 cp .env.example .env
 
-# Start Next.js development server
+# Jalankan Next.js development server
 npm run dev
 ```
-
-Frontend will run at `http://localhost:3000`.
+Frontend aktif di `http://localhost:3000`.
 
 ---
 
-## Environment Variables
+## Environment Variables Reference
 
 ### Backend (`backend/.env`)
 
-| Variable                      | Default Value                       | Description                           |
-| :---------------------------- | :---------------------------------- | :------------------------------------ |
-| `DATABASE_URL`                | `sqlite:///./helpdesk.db`           | SQLAlchemy database connection string |
-| `JWT_SECRET_KEY`              | `your-super-secret-jwt-key`         | Secret key for signing access tokens  |
-| `JWT_REFRESH_SECRET_KEY`      | `your-super-secret-refresh-jwt-key` | Secret key for signing refresh tokens |
-| `ALGORITHM`                   | `HS256`                             | JWT signing algorithm                 |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | `30`                                | Access token expiration in minutes    |
+| Variable                      | Contoh Nilai (SQLite)       | Contoh Nilai (PostgreSQL)                                                | Deskripsi                                    |
+| :---------------------------- | :-------------------------- | :----------------------------------------------------------------------- | :------------------------------------------- |
+| `DATABASE_URL`                | `sqlite:///./helpdesk.db`   | `postgresql://user:password@localhost:5432/helpdesk-mini` *(local)*      | Connection string database SQLAlchemy        |
+|                               |                             | `postgresql://user:password@db:5432/helpdesk-mini` *(docker)*            | Gunakan host `db` saat di dalam Docker       |
+| `JWT_SECRET_KEY`              | `your-super-secret-jwt-key` | `your-super-secret-jwt-key`                                              | Kunci rahasia untuk tanda tangan access token|
+| `JWT_REFRESH_SECRET_KEY`      | `your-secret-refresh-key`   | `your-secret-refresh-key`                                                | Kunci rahasia untuk refresh token            |
+| `ALGORITHM`                   | `HS256`                     | `HS256`                                                                  | Algoritma hashing JWT                        |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | `30`                        | `30`                                                                     | Durasi aktif token akses (menit)             |
+
+> **Catatan Karakter Khusus Password:** Jika password database mengandung simbol seperti `@` atau `#`, lakukan URL encoding (misalnya password `lele@123` ditulis menjadi `lele%40123` pada `DATABASE_URL`).
 
 ### Frontend (`frontend/.env`)
 
-| Variable              | Default Value           | Description                                  |
-| :-------------------- | :---------------------- | :------------------------------------------- |
-| `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Backend API base URL accessible from browser |
+| Variable              | Nilai Default           | Deskripsi                                             |
+| :-------------------- | :---------------------- | :---------------------------------------------------- |
+| `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Base URL Backend API yang dapat diakses browser klien |
 
 ---
 
-## Project Directory Structure
+## Panduan Koneksi Database GUI (DBeaver / TablePlus / pgAdmin)
+
+Jika ingin melihat data tabel langsung dari software GUI database:
+
+- **Bila menggunakan SQLite:**
+  - Pilih driver **SQLite**.
+  - Arahkan path file ke `backend/helpdesk.db`.
+- **Bila menggunakan PostgreSQL (Lokal / Docker):**
+  - **Host:** `localhost`
+  - **Port:** `5432`
+  - **Database:** `helpdesk-mini`
+  - **Username:** `user` (atau sesuai konfigurasi env)
+  - **Password:** `password` (atau sesuai konfigurasi env)
+
+---
+
+## Troubleshooting & FAQ
+
+### 1. Kenapa muncul pesan error "CORS" di browser saat request API?
+Seringkali ini adalah *false-positive* dari browser. Ketika backend mengalami kegagalan fatal saat startup (misalnya gagal konek ke database karena password salah atau database mati), FastAPI merespon dengan status `500 Internal Server Error` tanpa menyertakan header CORS lengkap. Cek log backend (`docker compose logs backend` atau terminal uvicorn) untuk melihat error sebenarnya dari database.
+
+### 2. Password PostgreSQL diubah di `docker-compose.yaml` tapi tetap gagal autentikasi?
+PostgreSQL resmi Docker hanya menginisialisasi username dan password saat volume pertama kali dibuat. Jika volume `postgres_data` sudah ada, PostgreSQL mengabaikan env var baru tersebut. Untuk mereset:
+```bash
+docker compose down -v
+docker compose up -d --build
+```
+*(Perhatian: `down -v` akan menghapus data kontainer sebelumnya, jalankan `alembic upgrade head` dan `seed.py` kembali).*
+
+### 3. Mengapa pesan chat sebelumnya sempat muncul dobel dan berstatus "sending..."?
+Masalah tersebut telah teratasi. Sebelumnya frontend menggunakan *optimistic temporary negative ID* yang tersimpan di cache TanStack Query dan bertabrakan dengan ID asli dari server. Sekarang pengiriman telah disederhanakan dengan fungsi deduplikasi ID pesan murni dan fallback REST langsung jika WebSocket terputus.
+
+---
+
+## Struktur Direktori Proyek
 
 ```text
 helpdesk-mini/
 ├── backend/
+│   ├── alembic/                # Skrip migrasi database Alembic
+│   │   ├── versions/           # File revisi migrasi schema tabel
+│   │   └── env.py              # Konfigurasi metadata migrasi SQLAlchemy
 │   ├── app/
-│   │   ├── core/               # Security, pagination helper, websocket manager, config
-│   │   ├── db/                 # Database connection & SQLAlchemy models
+│   │   ├── core/               # Konfigurasi, helper pagination, websocket connection manager
+│   │   ├── db/                 # Setup database session & definisi model SQLAlchemy
 │   │   └── modules/            # Vertical feature modules
-│   │       ├── auth/           # Login, registration, token refresh
-│   │       ├── users/          # User management, search & pagination
-│   │       └── tickets/        # Ticket CRUD, status flow, chat messages
-│   ├── seed.py                 # Initial data seeder script
-│   ├── Dockerfile              # Backend Dockerfile
-│   └── requirements.txt        # Python dependencies
+│   │       ├── auth/           # Login, register, refresh token, otentikasi DTO
+│   │       ├── users/          # Manajemen data pengguna, pencarian & paginasi
+│   │       └── tickets/        # Tiket CRUD, status transition, pesan chat (WebSocket + REST)
+│   ├── seed.py                 # Skrip seeder data multi-tenant dan demo user
+│   ├── Dockerfile              # Dockerfile backend FastAPI
+│   └── requirements.txt        # Dependensi Python
 ├── frontend/
 │   ├── src/
-│   │   ├── app/                # Next.js App Router (login, tickets, admin)
-│   │   ├── components/         # Reusable UI & role guard components
-│   │   ├── lib/                # Axios instance & token interceptors
-│   │   ├── providers/          # React Query provider with global error toast
-│   │   └── types/              # TypeScript DTOs & interfaces
-│   ├── Dockerfile              # Multi-stage production Dockerfile
-│   ├── .dockerignore           # Build context exclusions
-│   └── package.json
-└── docker-compose.yaml         # Compose file for frontend & backend services
+│   │   ├── app/                # Next.js App Router (login, tickets, tickets/[id], admin/users)
+│   │   ├── components/         # Komponen reusable UI & role guard
+│   │   ├── contexts/           # AuthContext & state pengguna
+│   │   ├── lib/                # Konfigurasi Axios client & request interceptors
+│   │   ├── providers/          # React Query Provider
+│   │   └── types/              # Deklarasi TypeScript types & DTOs
+│   ├── Dockerfile              # Dockerfile multi-stage Next.js standalone
+│   ├── .dockerignore           # Pengecualian build context Docker
+│   └── package.json            # Dependensi Node.js / NPM
+└── docker-compose.yaml         # Orkestrasi 3 service: backend, frontend, & postgresql
 ```
 
 ---
 
-## Testing Credentials Flow
+## Alur Pengujian Fitur (Testing Walkthrough)
 
-1. Buka [Frontend](https://helpdesk-mini-two.vercel.app) atau [Local Frontend](http://localhost:3000).
-2. Login sebagai **Customer** (`customer1@techcorp.com` / `password123`):
-   - Buat tiket baru melalui tombol **Create Ticket**.
-   - Kirim pesan ke agent.
-3. Logout, lalu login sebagai **Agent** (`agent@techcorp.com` / `password123`):
-   - Buka tiket yang baru dibuat, balas pesan customer (real-time chat).
-   - Ubah status tiket menjadi `In Progress` atau `Resolved`.
-4. Logout, lalu login sebagai **Admin** (`admin@techcorp.com` / `password123`):
-   - Masuk ke menu **Manage Users** di navbar untuk melihat daftar user dengan pagination, filter role, dan pencarian.
-   - Tambah user baru (Agent atau Customer).
+1. Buka [Frontend](https://helpdesk-mini-two.vercel.app) atau [Local Frontend](http://localhost:3000 / http://localhost:3001).
+2. **Sebagai Customer** (`customer1@techcorp.com` / `password123`):
+   - Klik **Create Ticket** untuk membuat tiket bantuan baru.
+   - Buka tiket tersebut, ketikkan pesan obrolan (pesan tersimpan ke database secara persisten dan tersiar live).
+3. **Sebagai Agent** (`agent@techcorp.com` / `password123`):
+   - Buka browser kedua atau jendela *incognito*.
+   - Temukan tiket yang baru dibuat, klik **Take Ticket** untuk menetapkan tiket kepada Anda.
+   - Balas pesan customer (chat dua arah terhubung secara real-time).
+   - Perhatikan indikator saat customer sedang mengetik.
+   - Ubah status tiket menjadi `In Progress` atau `Resolved` (perubahan status langsung diperbarui di layar customer).
+4. **Sebagai Admin** (`admin@techcorp.com` / `password123`):
+   - Buka menu **Manage Users** di navbar atas.
+   - Uji fitur pencarian nama atau email, penyaringan berdasarkan role, dan navigasi paginasi.
+   - Tambah akun Agent atau Customer baru.
