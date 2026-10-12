@@ -6,21 +6,31 @@ A minimal, secure, and real-time customer support platform built with **FastAPI*
 
 ## Live Deployment & Links
 
-| Service                   | Environment / URL                                                            | Deskripsi                       |
-| :------------------------ | :--------------------------------------------------------------------------- | :------------------------------ |
-| **Frontend (Vercel)**     | [https://helpdesk-mini-two.vercel.app](https://helpdesk-mini-two.vercel.app) | Production Web App              |
-| **Frontend (Docker VPS)** | `http://103.189.234.83:3001`                                                 | Self-hosted Frontend Container  |
-| **Backend API**           | `http://103.189.234.83:8000`                                                 | FastAPI REST & WebSocket Server |
-| **Interactive API Docs**  | [http://103.189.234.83:8000/docs](http://103.189.234.83:8000/docs)           | Swagger UI Documentation        |
+| Service                   | Environment / URL                                                                                       | Deskripsi                                    |
+| :------------------------ | :------------------------------------------------------------------------------------------------------ | :------------------------------------------- |
+| **Frontend (Vercel)**     | [helpdesk-mini-two.vercel.app](https://helpdesk-mini-two.vercel.app)                                    | Production Web App                           |
+| **Frontend (Docker VPS)** | `http://103.189.234.83:3001`                                                                            | Self-hosted Frontend Container               |
+| **Backend API**           | `http://103.189.234.83:8000`                                                                            | FastAPI REST & WebSocket Server              |
+| **Interactive API Docs**  | [http://103.189.234.83:8000/docs](http://103.189.234.83:8000/docs)                                      | Swagger UI Documentation                     |
+| **Video Demo**            | [Tonton Video Demo](https://drive.google.com/file/d/19XdYszQT9fuan9sSNHYSKV95n42YQu4N/view?usp=sharing) | Panduan & rekaman demonstrasi fitur aplikasi |
 
 > [!WARNING]
 > **Catatan Mixed Content pada Deployment Vercel:**
-> Frontend Vercel berjalan pada protokol aman **HTTPS** (`https://helpdesk-mini-two.vercel.app`). Jika dihubungkan langsung ke backend VPS yang masih menggunakan protokol **HTTP** biasa (`http://103.189.234.83:8000`), browser modern akan memblokir request API dan koneksi WebSocket karena pembatasan keamanan **Mixed Content** (*insecure content blocked on secure page*).
-> 
+> Frontend Vercel berjalan pada protokol aman **HTTPS** (`https://helpdesk-mini-two.vercel.app`). Jika dihubungkan langsung ke backend VPS yang masih menggunakan protokol **HTTP** biasa (`http://103.189.234.83:8000`), browser modern akan memblokir request API dan koneksi WebSocket karena pembatasan keamanan **Mixed Content** (_insecure content blocked on secure page_).
+>
 > **Solusi & Rekomendasi:**
+>
 > 1. **Gunakan Frontend Docker VPS:** Akses melalui [http://103.189.234.83:3001](http://103.189.234.83:3001) yang sama-sama menggunakan protokol HTTP sehingga bebas dari blokir Mixed Content.
 > 2. **Pasang SSL/TLS pada Backend VPS:** Hubungkan domain dengan sertifikat SSL (HTTPS & WSS) menggunakan reverse proxy (Nginx / Caddy + Certbot Let's Encrypt atau Cloudflare) agar backend dapat diakses via `https://`.
 > 3. **Next.js API Rewrites di Vercel:** Konfigurasikan proxy rewrite pada `next.config.ts` sehingga panggilan browser tetap menuju HTTPS `/api/*` yang diteruskan di level server ke backend HTTP.
+
+---
+
+## Video Demo
+
+Tonton video demonstrasi alur dan fitur HelpDesk Mini (Customer Ticket Creation, Real-time WebSocket Chat, Take Ticket oleh Agent, dan Admin Role Management):
+
+> **Tautan Video Demo:** [Video Demo flow ticket Agent dan Customer](https://drive.google.com/file/d/19XdYszQT9fuan9sSNHYSKV95n42YQu4N/view?usp=sharing)
 
 ---
 
@@ -239,7 +249,7 @@ Frontend aktif di `http://localhost:3000`.
 | :-------------------- | :---------------------- | :---------------------------------------------------- |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Base URL Backend API yang dapat diakses browser klien |
 
-> **Catatan Protokol Vercel / HTTPS:** Jika frontend di-deploy di Vercel atau domain berprotokol HTTPS, `NEXT_PUBLIC_API_URL` wajib mengarah ke URL berprotokol `https://` (bukan `http://`). Jika mengarah ke `http://`, browser akan menolak request karena pelanggaran kebijakan keamanan *Mixed Content*.
+> **Catatan Protokol Vercel / HTTPS:** Jika frontend di-deploy di Vercel atau domain berprotokol HTTPS, `NEXT_PUBLIC_API_URL` wajib mengarah ke URL berprotokol `https://` (bukan `http://`). Jika mengarah ke `http://`, browser akan menolak request karena pelanggaran kebijakan keamanan _Mixed Content_.
 
 ---
 
