@@ -24,16 +24,16 @@ services:
     depends_on:
       - backend
 
-  # db:
-  #   image: postgres:15-alpine
-  #   container_name: helpdesk_db
-  #   restart: always
-  #   environment:
-  #     POSTGRES_USER: user
-  #     POSTGRES_PASSWORD: password
-  #     POSTGRES_DB: helpdesk
-  #   volumes:
-  #     - postgres_data:/var/lib/postgresql/data
+  db:
+    image: postgres:15-alpine
+    container_name: helpdesk_db
+    restart: always
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: helpdesk
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
 
-# volumes:
-#   postgres_data:
+volumes:
+  postgres_data:
