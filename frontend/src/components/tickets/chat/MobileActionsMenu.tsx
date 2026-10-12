@@ -100,9 +100,11 @@ export function MobileActionsMenu({
                   <Select
                     value={ticket?.status}
                     onValueChange={(val) => {
-                      if (val) {
+                      if (val && val !== ticket?.status) {
                         updateStatus(val as Status);
-                        onClose();
+                        setTimeout(() => {
+                          onClose();
+                        }, 100);
                       }
                     }}
                     disabled={isUpdatingStatus}
@@ -151,10 +153,10 @@ export function MobileActionsMenu({
                     {ticket?.status === "closed"
                       ? "This ticket is closed."
                       : isTicketTaken
-                      ? `Ticket already taken by ${
-                          ticket?.assigned_agent?.name || "agent"
-                        }.`
-                      : "No actions available right now."}
+                        ? `Ticket already taken by ${
+                            ticket?.assigned_agent?.name || "agent"
+                          }.`
+                        : "No actions available right now."}
                   </span>
                 </div>
               )}

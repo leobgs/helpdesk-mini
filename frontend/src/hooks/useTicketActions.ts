@@ -14,19 +14,27 @@ export function useTicketActions(ticketId?: string | number) {
   const updateStatusMutation = useMutation({
     mutationFn: async (status: Status) => {
       if (!ticketId) throw new Error("Ticket ID is required");
-      const { data } = await api.patch(`/api/v1/tickets/${ticketId}`, { status });
+      const { data } = await api.patch(`/api/v1/tickets/${ticketId}`, {
+        status,
+      });
       return data;
     },
     onSuccess: () => {
       toast.success("Ticket status updated successfully");
       if (ticketId) {
-        queryClient.invalidateQueries({ queryKey: ["ticket", String(ticketId)] });
-        queryClient.invalidateQueries({ queryKey: ["ticket", Number(ticketId)] });
+        queryClient.invalidateQueries({
+          queryKey: ["ticket", String(ticketId)],
+        });
+        queryClient.invalidateQueries({
+          queryKey: ["ticket", Number(ticketId)],
+        });
         queryClient.invalidateQueries({ queryKey: ["tickets"] });
       }
     },
     onError: (error: AxiosError<{ detail?: string }>) => {
-      toast.error(error.response?.data?.detail || "Failed to update ticket status");
+      toast.error(
+        error.response?.data?.detail || "Failed to update ticket status",
+      );
     },
   });
 
@@ -42,8 +50,12 @@ export function useTicketActions(ticketId?: string | number) {
     onSuccess: () => {
       toast.success("Ticket assigned to you");
       if (ticketId) {
-        queryClient.invalidateQueries({ queryKey: ["ticket", String(ticketId)] });
-        queryClient.invalidateQueries({ queryKey: ["ticket", Number(ticketId)] });
+        queryClient.invalidateQueries({
+          queryKey: ["ticket", String(ticketId)],
+        });
+        queryClient.invalidateQueries({
+          queryKey: ["ticket", Number(ticketId)],
+        });
         queryClient.invalidateQueries({ queryKey: ["tickets"] });
       }
     },

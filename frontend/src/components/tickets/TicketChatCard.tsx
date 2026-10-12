@@ -53,15 +53,25 @@ export function TicketChatCard({
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
+      const target = event.target as Element | null;
+      if (!target) return;
+
+      const isInsidePortal = !!target.closest?.(
+        '[data-slot="select-content"], [data-slot="select-item"], [data-slot="select-trigger"], [role="listbox"], [role="option"]',
+      );
+      if (isInsidePortal) {
+        return;
+      }
+
       if (
         actionsDropdownRef.current &&
-        !actionsDropdownRef.current.contains(event.target as Node)
+        !actionsDropdownRef.current.contains(target as Node)
       ) {
         setShowActionsMenu(false);
       }
       if (
         detailsDropdownRef.current &&
-        !detailsDropdownRef.current.contains(event.target as Node)
+        !detailsDropdownRef.current.contains(target as Node)
       ) {
         setShowDetailsCard(false);
       }
@@ -94,7 +104,6 @@ export function TicketChatCard({
     if (e.key === "Enter") {
       if (e.shiftKey) return;
 
-      // On mobile virtual keyboard, Return creates a newline; on desktop, Enter sends message
       const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
       if (isMobile) return;
 

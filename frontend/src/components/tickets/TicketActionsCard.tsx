@@ -3,12 +3,7 @@
 import { UserCheck, RotateCcw, Loader2 } from "lucide-react";
 import { Ticket, Status } from "@/types";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -128,10 +123,10 @@ export function TicketActionsCard({
                   {ticket.status === "closed"
                     ? "This ticket is closed."
                     : isTicketTaken
-                    ? `Ticket already taken by ${
-                        ticket.assigned_agent?.name || "agent"
-                      }.`
-                    : "No actions available right now."}
+                      ? `Ticket already taken by ${
+                          ticket.assigned_agent?.name || "agent"
+                        }.`
+                      : "No actions available right now."}
                 </span>
               </div>
             )}
