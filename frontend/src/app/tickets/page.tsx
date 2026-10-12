@@ -54,12 +54,12 @@ const fetchTickets = async ({
   params.append("limit", limit.toString());
 
   const { data } = await api.get<PaginatedTickets>(
-    `/api/v1/tickets?${params.toString()}`
+    `/api/v1/tickets?${params.toString()}`,
   );
   return data;
 };
 
-const getStatusBadge = (status: Status) => {
+export const getStatusBadge = (status: Status) => {
   const styles: Record<Status, string> = {
     open: "bg-yellow-100 text-yellow-800 hover:bg-yellow-100",
     in_progress: "bg-blue-100 text-blue-800 hover:bg-blue-100",
@@ -76,7 +76,7 @@ const getStatusBadge = (status: Status) => {
   );
 };
 
-const getPriorityBadge = (priority: string) => {
+export const getPriorityBadge = (priority: string) => {
   const styles: Record<string, string> = {
     low: "text-slate-500 bg-slate-100 hover:bg-slate-100",
     medium: "text-orange-600 bg-orange-100 hover:bg-orange-100",
@@ -122,13 +122,7 @@ export default function TicketsPage() {
     setPage(1);
   };
 
-  const {
-    data,
-    isLoading,
-    isFetching,
-    isError,
-    error,
-  } = useQuery({
+  const { data, isLoading, isFetching, isError, error } = useQuery({
     queryKey: [
       "tickets",
       { status: statusFilter, search: debouncedSearch, page, limit },
@@ -141,6 +135,8 @@ export default function TicketsPage() {
         limit,
       }),
     placeholderData: keepPreviousData,
+    refetchInterval: 10000,
+    refetchOnWindowFocus: true,
   });
 
   const tickets = data?.data || [];
@@ -263,7 +259,11 @@ export default function TicketsPage() {
                       </TableHead>
                     </TableRow>
                   </TableHeader>
-                  <TableBody className={cn(isFetching && "opacity-70 transition-opacity")}>
+                  <TableBody
+                    className={cn(
+                      isFetching && "opacity-70 transition-opacity",
+                    )}
+                  >
                     {tickets.map((ticket) => (
                       <TableRow
                         key={ticket.id}
