@@ -31,7 +31,7 @@ services:
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: helpdesk
+      POSTGRES_DB: helpdesk-mini
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
