@@ -4,32 +4,22 @@ import { useState, useEffect, useRef, use, Suspense, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import Cookies from "js-cookie";
-import { Send, ArrowLeft, AlertCircle, Loader2 } from "lucide-react";
+import { ArrowLeft, AlertCircle } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 
 import { api } from "@/lib/axios";
 import { Ticket, Message, Status, PaginatedMessages } from "@/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardFooter,
-} from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  TicketDetailsCard,
+  TicketActionsCard,
+  TicketChatCard,
+  WebSocketStatus,
+} from "@/components/tickets";
 
 export default function TicketDetailPage({
   params,
@@ -53,35 +43,16 @@ export default function TicketDetailPage({
 
 function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const router = useRouter();
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
   const [messages, setMessages] = useState<Message[]>([]);
-  const [newMessage, setNewMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [ws, setWs] = useState<WebSocket | null>(null);
-  const [wsStatus, setWsStatus] = useState<
-    "connecting" | "connected" | "disconnected" | "error"
-  >("connecting");
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [wsStatus, setWsStatus] = useState<WebSocketStatus>("connecting");
 
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  const resetTextareaHeight = () => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-    }
-  };
-
-  const adjustTextareaHeight = () => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
-  };
 
   // Fetch ticket details
   const {
@@ -128,10 +99,6 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
       setMessages(initialMessages);
     }
   }, [initialMessages]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
 
   // WebSocket connection with automatic reconnection
   useEffect(() => {
@@ -237,15 +204,8 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
 
   const isClosed = ticket?.status === "closed";
 
-  const handleSendMessage = async (
-    e?: React.FormEvent | React.KeyboardEvent,
-  ) => {
-    if (e) e.preventDefault();
-    const text = newMessage.trim();
+  const handleSendMessage = async (text: string) => {
     if (!text || isSending || isClosed) return;
-
-    setNewMessage("");
-    resetTextareaHeight();
 
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -265,23 +225,6 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
       } finally {
         setIsSending(false);
       }
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter") {
-      if (e.shiftKey) {
-        return;
-      }
-
-      const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
-      if (isMobile) {
-        return;
-      }
-
-      if (e.nativeEvent.isComposing) return;
-      e.preventDefault();
-      handleSendMessage(e);
     }
   };
 
@@ -357,248 +300,29 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-200px)] min-h-150">
         {/* Chat Panel */}
-        <Card className="lg:col-span-2 flex flex-col shadow-sm border-slate-200 min-h-150 h-full">
-          <CardHeader className="py-4 border-b bg-slate-50">
-            <CardTitle className="text-sm font-medium flex items-center justify-between">
-              Conversation
-              {wsStatus === "connected" && (
-                <Badge
-                  variant="outline"
-                  className="text-[10px] text-emerald-600 border-emerald-300"
-                >
-                  Live
-                </Badge>
-              )}
-              {wsStatus === "disconnected" && (
-                <Badge
-                  variant="outline"
-                  className="text-[10px] text-amber-600 border-amber-300"
-                >
-                  Offline (HTTP fallback)
-                </Badge>
-              )}
-              {wsStatus === "connecting" && (
-                <Badge variant="secondary" className="text-[10px]">
-                  Connecting...
-                </Badge>
-              )}
-              {wsStatus === "error" && (
-                <Badge
-                  variant="outline"
-                  className="text-[10px] text-amber-600 border-amber-300"
-                >
-                  Error (HTTP fallback)
-                </Badge>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50">
-            {messages.map((msg) => {
-              const isMe = msg.sender?.id === user?.id;
-              return (
-                <div
-                  key={msg.id}
-                  className={`flex flex-col ${isMe ? "items-end ml-auto" : "items-start"} gap-1 max-w-[85%] sm:max-w-[75%] md:max-w-lg lg:max-w-xl`}
-                >
-                  <div className="text-[11px] text-slate-500 flex items-center gap-1 px-1">
-                    <span className="font-semibold text-slate-700">
-                      {isMe ? "You" : msg.sender?.name || "Unknown"}
-                    </span>
-                    <span className="uppercase opacity-60">
-                      ({msg.sender?.role || "system"})
-                    </span>
-                    <span className="opacity-60 ml-2">
-                      {new Date(msg.created_at).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
-                  </div>
-                  <div
-                    className={`p-3 rounded-lg text-sm shadow-sm whitespace-pre-wrap break-words [overflow-wrap:anywhere] max-w-full leading-relaxed ${
-                      isMe
-                        ? "bg-blue-600 text-white rounded-tr-none"
-                        : "bg-white border border-slate-200 text-slate-800 rounded-tl-none"
-                    }`}
-                  >
-                    {msg.body}
-                  </div>
-                </div>
-              );
-            })}
-            <div ref={messagesEndRef} />
-          </CardContent>
-          {typingUsers.length > 0 && (
-            <div className="px-4 py-2 text-xs text-slate-500 italic bg-slate-50/50 border-t">
-              {typingUsers.join(", ")} {typingUsers.length > 1 ? "are" : "is"}{" "}
-              typing...
-            </div>
-          )}
-          <div className="p-4 bg-white border-t">
-            {isClosed ? (
-              <div className="text-center text-sm text-slate-500 py-2">
-                This ticket is closed. No further messages can be sent.
-              </div>
-            ) : (
-              <form onSubmit={handleSendMessage} className="space-y-1.5">
-                <div className="flex items-end gap-2">
-                  <Textarea
-                    ref={textareaRef}
-                    value={newMessage}
-                    onChange={(e) => {
-                      setNewMessage(e.target.value);
-                      adjustTextareaHeight();
-                      handleTyping();
-                    }}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Type your message..."
-                    className="min-h-[42px] max-h-36 resize-none py-2.5 text-sm flex-1 leading-relaxed"
-                    disabled={isSending}
-                    rows={1}
-                  />
-                  <Button
-                    type="submit"
-                    size="icon"
-                    className="h-[42px] w-[42px] shrink-0"
-                    disabled={!newMessage.trim() || isSending}
-                  >
-                    {isSending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Send className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-                <div className="hidden md:flex justify-between items-center px-1 text-[11px] text-slate-400">
-                  <span>
-                    Tekan{" "}
-                    <kbd className="px-1.5 py-0.5 bg-slate-100 rounded border border-slate-200 text-slate-600 font-mono text-[10px]">
-                      Enter
-                    </kbd>{" "}
-                    untuk kirim,{" "}
-                    <kbd className="px-1.5 py-0.5 bg-slate-100 rounded border border-slate-200 text-slate-600 font-mono text-[10px]">
-                      Shift + Enter
-                    </kbd>{" "}
-                    untuk baris baru
-                  </span>
-                </div>
-              </form>
-            )}
-          </div>
-        </Card>
+        <TicketChatCard
+          className="lg:col-span-2"
+          messages={messages}
+          currentUserId={user?.id}
+          wsStatus={wsStatus}
+          typingUsers={typingUsers}
+          isClosed={isClosed}
+          onSendMessage={handleSendMessage}
+          isSending={isSending}
+          onTyping={handleTyping}
+        />
 
-        {/* Ticket Info Panel */}
+        {/* Ticket Info & Actions Panel */}
         <div className="space-y-6">
-          <Card className="shadow-sm border-slate-200">
-            <CardHeader className="py-4 border-b">
-              <CardTitle className="text-sm font-semibold">Details</CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 space-y-4 text-sm">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className="text-slate-500 mb-1 text-xs uppercase font-medium">
-                    Customer
-                  </div>
-                  <div className="font-medium text-slate-900">
-                    {ticket.customer?.name}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-slate-500 mb-1 text-xs uppercase font-medium">
-                    Assignee
-                  </div>
-                  <div className="font-medium text-slate-900">
-                    {ticket.assigned_agent?.name || "Unassigned"}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-slate-500 mb-1 text-xs uppercase font-medium">
-                    Category
-                  </div>
-                  <div className="font-medium text-slate-900 capitalize">
-                    {ticket.category}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-slate-500 mb-1 text-xs uppercase font-medium">
-                    Priority
-                  </div>
-                  <Badge variant="outline" className="uppercase text-xs">
-                    {ticket.priority}
-                  </Badge>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-sm border-slate-200">
-            <CardHeader className="py-4 border-b">
-              <CardTitle className="text-sm font-semibold">Actions</CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 space-y-3">
-              {/* Agent / Admin Actions */}
-              {(user?.role === "agent" || user?.role === "admin") && (
-                <>
-                  {!ticket.assigned_agent_id && (
-                    <Button
-                      onClick={() => takeTicketMutation.mutate()}
-                      variant="outline"
-                      className="w-full justify-start"
-                      disabled={takeTicketMutation.isPending}
-                    >
-                      {takeTicketMutation.isPending
-                        ? "Taking Ticket..."
-                        : "Take Ticket"}
-                    </Button>
-                  )}
-
-                  <div className="space-y-2 pt-2">
-                    <label className="text-xs font-medium text-slate-500 uppercase">
-                      Change Status
-                    </label>
-                    <Select
-                      value={ticket.status}
-                      onValueChange={(val) =>
-                        updateStatusMutation.mutate(val as Status)
-                      }
-                      disabled={updateStatusMutation.isPending}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="open">Open</SelectItem>
-                        <SelectItem value="in_progress">In Progress</SelectItem>
-                        <SelectItem value="resolved">Resolved</SelectItem>
-                        <SelectItem value="closed">Closed</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </>
-              )}
-
-              {/* Customer Actions */}
-              {user?.role === "customer" && ticket.status === "resolved" && (
-                <Button
-                  onClick={() => updateStatusMutation.mutate("open")}
-                  variant="outline"
-                  className="w-full"
-                  disabled={updateStatusMutation.isPending}
-                >
-                  {updateStatusMutation.isPending
-                    ? "Reopening..."
-                    : "Reopen Ticket"}
-                </Button>
-              )}
-              {user?.role === "customer" &&
-                ticket.status !== "resolved" &&
-                ticket.status !== "closed" && (
-                  <div className="text-xs text-slate-500 text-center">
-                    No actions available
-                  </div>
-                )}
-            </CardContent>
-          </Card>
+          <TicketDetailsCard ticket={ticket} />
+          <TicketActionsCard
+            ticket={ticket}
+            userRole={user?.role}
+            onTakeTicket={() => takeTicketMutation.mutate()}
+            isTakingTicket={takeTicketMutation.isPending}
+            onStatusChange={(status) => updateStatusMutation.mutate(status)}
+            isUpdatingStatus={updateStatusMutation.isPending}
+          />
         </div>
       </div>
     </AuthGuard>
