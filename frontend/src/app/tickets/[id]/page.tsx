@@ -1,15 +1,15 @@
 "use client";
 
-import { useState, useEffect, useRef, use, Suspense } from "react";
+import { useState, useEffect, useRef, use, Suspense, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import Cookies from "js-cookie";
-import { Send, ArrowLeft, AlertCircle } from "lucide-react";
+import { Send, ArrowLeft, AlertCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { api } from "@/lib/axios";
-import { Ticket, Message, Status } from "@/types";
+import { Ticket, Message, Status, PaginatedMessages } from "@/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 
@@ -59,6 +59,7 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
+  const [isSending, setIsSending] = useState(false);
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [wsStatus, setWsStatus] = useState<
     "connecting" | "connected" | "disconnected" | "error"
@@ -82,21 +83,84 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
     retry: false,
   });
 
-  // Fetch initial messages
-  const { data: initialMessages, isLoading: isLoadingMessages } = useQuery({
+  // Fetch initial messages with support for list or paginated response
+  const {
+    data: initialMessages,
+    isLoading: isLoadingMessages,
+    refetch: refetchMessages,
+  } = useQuery({
     queryKey: ["ticket-messages", id],
     queryFn: async () => {
-      const { data } = await api.get<Message[]>(
+      const { data } = await api.get<Message[] | PaginatedMessages>(
         `/api/v1/tickets/${id}/messages`,
       );
-      return data;
+      if (Array.isArray(data)) {
+        return data;
+      }
+      return data?.data || [];
     },
     enabled: !!ticket,
   });
 
+  // Deduplication and message merge helper
+  const appendOrUpdateMessage = useCallback(
+    (newMsg: Message) => {
+      setMessages((prev) => {
+        const existsIndex = prev.findIndex((m) => m.id === newMsg.id);
+        if (existsIndex !== -1) {
+          const copy = [...prev];
+          copy[existsIndex] = newMsg;
+          return copy;
+        }
+        // Match and replace optimistic temporary message if same body & sender
+        const optIndex = prev.findIndex(
+          (m) =>
+            m.id < 0 &&
+            m.body === newMsg.body &&
+            (m.sender?.id === newMsg.sender?.id || m.sender_id === newMsg.sender_id),
+        );
+        if (optIndex !== -1) {
+          const copy = [...prev];
+          copy[optIndex] = newMsg;
+          return copy;
+        }
+        return [...prev, newMsg];
+      });
+
+      // Keep TanStack Query cache in sync
+      queryClient.setQueryData<Message[]>(["ticket-messages", id], (old) => {
+        if (!old) return [newMsg];
+        if (old.some((m) => m.id === newMsg.id)) return old;
+        return [...old, newMsg];
+      });
+    },
+    [id, queryClient],
+  );
+
   useEffect(() => {
     if (initialMessages) {
-      setMessages(initialMessages);
+      setMessages((prev) => {
+        const messageMap = new Map<number, Message>();
+        initialMessages.forEach((msg) => messageMap.set(msg.id, msg));
+        // Keep pending optimistic messages
+        prev.forEach((msg) => {
+          if (
+            msg.id < 0 &&
+            !initialMessages.some(
+              (im) =>
+                im.body === msg.body &&
+                (im.sender?.id === msg.sender?.id || im.sender_id === msg.sender_id),
+            )
+          ) {
+            messageMap.set(msg.id, msg);
+          } else if (!messageMap.has(msg.id)) {
+            messageMap.set(msg.id, msg);
+          }
+        });
+        return Array.from(messageMap.values()).sort(
+          (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+        );
+      });
     }
   }, [initialMessages]);
 
@@ -104,66 +168,93 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // WebSocket connection
+  // WebSocket connection with automatic reconnection
   useEffect(() => {
     if (!ticket) return;
 
     const token = Cookies.get("access_token");
     if (!token) return;
 
-    const wsUrl = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/tickets/ws/${id}?token=${token}`;
-    const wsUrlStr = wsUrl
-      .replace("http://", "ws://")
-      .replace("https://", "wss://");
+    let isSubscribed = true;
+    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+    let socket: WebSocket | null = null;
 
-    const socket = new WebSocket(wsUrlStr);
+    const connectWebSocket = () => {
+      if (!isSubscribed) return;
 
-    socket.onopen = () => {
-      setWsStatus("connected");
-    };
+      const wsUrl = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/tickets/ws/${id}?token=${token}`;
+      const wsUrlStr = wsUrl
+        .replace("http://", "ws://")
+        .replace("https://", "wss://");
 
-    socket.onmessage = (event) => {
-      console.log(event, "eventss");
-      const msg = JSON.parse(event.data);
-      if (msg.type === "message") {
-        setMessages((prev) => [...prev, msg.data]);
-      } else if (msg.type === "typing") {
-        if (msg.data.user_id !== user?.id) {
-          setTypingUsers((prev) => {
-            if (msg.data.is_typing) {
-              return prev.includes(msg.data.name)
-                ? prev
-                : [...prev, msg.data.name];
-            } else {
-              return prev.filter((name) => name !== msg.data.name);
+      setWsStatus("connecting");
+      socket = new WebSocket(wsUrlStr);
+
+      socket.onopen = () => {
+        if (!isSubscribed) return;
+        setWsStatus("connected");
+        // Refetch to sync messages that may have arrived while disconnected
+        refetchMessages();
+      };
+
+      socket.onmessage = (event) => {
+        if (!isSubscribed) return;
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === "message") {
+            appendOrUpdateMessage(msg.data);
+          } else if (msg.type === "typing") {
+            if (msg.data.user_id !== user?.id) {
+              setTypingUsers((prev) => {
+                if (msg.data.is_typing) {
+                  return prev.includes(msg.data.name)
+                    ? prev
+                    : [...prev, msg.data.name];
+                } else {
+                  return prev.filter((name) => name !== msg.data.name);
+                }
+              });
             }
-          });
+          } else if (msg.type === "status_changed") {
+            queryClient.setQueryData(["ticket", id], (old: any) => ({
+              ...old,
+              status: msg.status,
+            }));
+          } else if (msg.type === "error") {
+            console.error("WebSocket error message:", msg.message);
+          }
+        } catch (e) {
+          console.error("Failed to parse websocket event:", e);
         }
-      } else if (msg.type === "status_changed") {
-        // Update ticket status in react query cache
-        queryClient.setQueryData(["ticket", id], (old: any) => ({
-          ...old,
-          status: msg.status,
-        }));
-      } else if (msg.type === "error") {
-        console.error("WebSocket error message:", msg.message);
-      }
+      };
+
+      socket.onclose = (event) => {
+        if (!isSubscribed) return;
+        setWsStatus("disconnected");
+        // Auto-reconnect after 3 seconds if not a normal closure
+        if (event.code !== 1000 && event.code !== 1008) {
+          reconnectTimeout = setTimeout(connectWebSocket, 3000);
+        }
+      };
+
+      socket.onerror = () => {
+        if (!isSubscribed) return;
+        setWsStatus("error");
+      };
+
+      setWs(socket);
     };
 
-    socket.onclose = () => {
-      setWsStatus("disconnected");
-    };
-
-    socket.onerror = () => {
-      setWsStatus("error");
-    };
-
-    setWs(socket);
+    connectWebSocket();
 
     return () => {
-      socket.close();
+      isSubscribed = false;
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (socket) {
+        socket.close(1000);
+      }
     };
-  }, [id, ticket, queryClient]);
+  }, [id, ticket, user?.id, queryClient, refetchMessages, appendOrUpdateMessage]);
 
   const handleTyping = () => {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
@@ -179,15 +270,52 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
     }, 2000);
   };
 
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newMessage.trim() || !ws || ws.readyState !== WebSocket.OPEN) return;
+  const isClosed = ticket?.status === "closed";
 
-    ws.send(JSON.stringify({ body: newMessage }));
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const text = newMessage.trim();
+    if (!text || isSending || isClosed) return;
+
     setNewMessage("");
 
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    ws.send(JSON.stringify({ type: "typing", is_typing: false }));
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: "typing", is_typing: false }));
+    }
+
+    // Create optimistic message so chat is immediately visible
+    const tempId = -Date.now();
+    const optimisticMsg: Message = {
+      id: tempId,
+      ticket_id: Number(id),
+      sender_id: user?.id || 0,
+      body: text,
+      created_at: new Date().toISOString(),
+      sender: user || undefined,
+    };
+    appendOrUpdateMessage(optimisticMsg);
+
+    // If WebSocket is open, send via WebSocket
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ body: text }));
+    } else {
+      // Fallback: send via REST HTTP API to guarantee persistence
+      try {
+        setIsSending(true);
+        const { data } = await api.post<Message>(
+          `/api/v1/tickets/${id}/messages`,
+          { body: text },
+        );
+        appendOrUpdateMessage(data);
+      } catch (error) {
+        toast.error("Failed to send message. Please try again.");
+        // Remove failed optimistic message
+        setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      } finally {
+        setIsSending(false);
+      }
+    }
   };
 
   // Update ticket status mutation
@@ -216,8 +344,6 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
       queryClient.invalidateQueries({ queryKey: ["ticket", id] });
     },
   });
-
-  const isClosed = ticket?.status === "closed";
 
   if (isLoadingTicket || isLoadingMessages)
     return (
@@ -262,15 +388,20 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
         </h1>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-200px)] min-h-[600px]">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-200px)] min-h-150">
         {/* Chat Panel */}
         <Card className="lg:col-span-2 flex flex-col shadow-sm border-slate-200 h-full">
           <CardHeader className="py-4 border-b bg-slate-50">
             <CardTitle className="text-sm font-medium flex items-center justify-between">
               Conversation
+              {wsStatus === "connected" && (
+                <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-300">
+                  Live
+                </Badge>
+              )}
               {wsStatus === "disconnected" && (
-                <Badge variant="destructive" className="text-[10px]">
-                  Offline
+                <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300">
+                  Offline (HTTP fallback)
                 </Badge>
               )}
               {wsStatus === "connecting" && (
@@ -278,15 +409,21 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
                   Connecting...
                 </Badge>
               )}
+              {wsStatus === "error" && (
+                <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300">
+                  Error (HTTP fallback)
+                </Badge>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50">
             {messages.map((msg) => {
-              const isMe = msg.sender?.id === user?.id;
+              const isMe = msg.sender?.id === user?.id || (msg.id < 0 && msg.sender_id === user?.id);
+              const isOptimistic = msg.id < 0;
               return (
                 <div
                   key={msg.id}
-                  className={`flex flex-col ${isMe ? "items-end" : "items-start"} gap-1 max-w-[80%] ${isMe ? "ml-auto" : ""}`}
+                  className={`flex flex-col ${isMe ? "items-end" : "items-start"} gap-1 max-w-[80%] ${isMe ? "ml-auto" : ""} ${isOptimistic ? "opacity-75" : ""}`}
                 >
                   <div className="text-[11px] text-slate-500 flex items-center gap-1">
                     <span className="font-semibold text-slate-700">
@@ -301,6 +438,11 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
                         minute: "2-digit",
                       })}
                     </span>
+                    {isOptimistic && (
+                      <span className="text-[10px] text-blue-500 italic ml-1">
+                        sending...
+                      </span>
+                    )}
                   </div>
                   <div
                     className={`p-3 rounded-lg text-sm shadow-sm whitespace-pre-wrap ${
@@ -337,14 +479,18 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
                   }}
                   placeholder="Type your message..."
                   className="flex-1"
-                  disabled={wsStatus !== "connected"}
+                  disabled={isSending}
                 />
                 <Button
                   type="submit"
                   size="icon"
-                  disabled={!newMessage.trim() || wsStatus !== "connected"}
+                  disabled={!newMessage.trim() || isSending}
                 >
-                  <Send className="h-4 w-4" />
+                  {isSending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
                 </Button>
               </form>
             )}
