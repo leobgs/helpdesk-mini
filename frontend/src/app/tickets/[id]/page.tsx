@@ -14,7 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -68,6 +68,20 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
 
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const resetTextareaHeight = () => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
+  };
+
+  const adjustTextareaHeight = () => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  };
 
   // Fetch ticket details
   const {
@@ -223,12 +237,15 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
 
   const isClosed = ticket?.status === "closed";
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSendMessage = async (
+    e?: React.FormEvent | React.KeyboardEvent,
+  ) => {
+    if (e) e.preventDefault();
     const text = newMessage.trim();
     if (!text || isSending || isClosed) return;
 
     setNewMessage("");
+    resetTextareaHeight();
 
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -248,6 +265,23 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
       } finally {
         setIsSending(false);
       }
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter") {
+      if (e.shiftKey) {
+        return;
+      }
+
+      const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+      if (isMobile) {
+        return;
+      }
+
+      if (e.nativeEvent.isComposing) return;
+      e.preventDefault();
+      handleSendMessage(e);
     }
   };
 
@@ -364,9 +398,9 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
               return (
                 <div
                   key={msg.id}
-                  className={`flex flex-col ${isMe ? "items-end" : "items-start"} gap-1 max-w-[80%] ${isMe ? "ml-auto" : ""}`}
+                  className={`flex flex-col ${isMe ? "items-end ml-auto" : "items-start"} gap-1 max-w-[85%] sm:max-w-[75%] md:max-w-lg lg:max-w-xl`}
                 >
-                  <div className="text-[11px] text-slate-500 flex items-center gap-1">
+                  <div className="text-[11px] text-slate-500 flex items-center gap-1 px-1">
                     <span className="font-semibold text-slate-700">
                       {isMe ? "You" : msg.sender?.name || "Unknown"}
                     </span>
@@ -381,7 +415,7 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
                     </span>
                   </div>
                   <div
-                    className={`p-3 rounded-lg text-sm shadow-sm whitespace-pre-wrap ${
+                    className={`p-3 rounded-lg text-sm shadow-sm whitespace-pre-wrap break-words [overflow-wrap:anywhere] max-w-full leading-relaxed ${
                       isMe
                         ? "bg-blue-600 text-white rounded-tr-none"
                         : "bg-white border border-slate-200 text-slate-800 rounded-tl-none"
@@ -406,28 +440,48 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
                 This ticket is closed. No further messages can be sent.
               </div>
             ) : (
-              <form onSubmit={handleSendMessage} className="flex gap-2">
-                <Input
-                  value={newMessage}
-                  onChange={(e) => {
-                    setNewMessage(e.target.value);
-                    handleTyping();
-                  }}
-                  placeholder="Type your message..."
-                  className="flex-1"
-                  disabled={isSending}
-                />
-                <Button
-                  type="submit"
-                  size="icon"
-                  disabled={!newMessage.trim() || isSending}
-                >
-                  {isSending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Send className="h-4 w-4" />
-                  )}
-                </Button>
+              <form onSubmit={handleSendMessage} className="space-y-1.5">
+                <div className="flex items-end gap-2">
+                  <Textarea
+                    ref={textareaRef}
+                    value={newMessage}
+                    onChange={(e) => {
+                      setNewMessage(e.target.value);
+                      adjustTextareaHeight();
+                      handleTyping();
+                    }}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Type your message..."
+                    className="min-h-[42px] max-h-36 resize-none py-2.5 text-sm flex-1 leading-relaxed"
+                    disabled={isSending}
+                    rows={1}
+                  />
+                  <Button
+                    type="submit"
+                    size="icon"
+                    className="h-[42px] w-[42px] shrink-0"
+                    disabled={!newMessage.trim() || isSending}
+                  >
+                    {isSending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                <div className="hidden md:flex justify-between items-center px-1 text-[11px] text-slate-400">
+                  <span>
+                    Tekan{" "}
+                    <kbd className="px-1.5 py-0.5 bg-slate-100 rounded border border-slate-200 text-slate-600 font-mono text-[10px]">
+                      Enter
+                    </kbd>{" "}
+                    untuk kirim,{" "}
+                    <kbd className="px-1.5 py-0.5 bg-slate-100 rounded border border-slate-200 text-slate-600 font-mono text-[10px]">
+                      Shift + Enter
+                    </kbd>{" "}
+                    untuk baris baru
+                  </span>
+                </div>
               </form>
             )}
           </div>
