@@ -6,12 +6,7 @@ import { Send, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export type WebSocketStatus =
   | "connecting"
@@ -82,8 +77,7 @@ export function TicketChatCard({
 
       // Mobile check: on mobile virtual keyboards, Return creates newline,
       // and send button is tapped to send.
-      const isMobile =
-        typeof window !== "undefined" && window.innerWidth < 768;
+      const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
       if (isMobile) {
         return;
       }
@@ -219,15 +213,15 @@ export function TicketChatCard({
             </div>
             <div className="hidden md:flex justify-between items-center px-1 text-[11px] text-slate-400">
               <span>
-                Tekan{" "}
+                Press{" "}
                 <kbd className="px-1.5 py-0.5 bg-slate-100 rounded border border-slate-200 text-slate-600 font-mono text-[10px]">
                   Enter
                 </kbd>{" "}
-                untuk kirim,{" "}
+                to send,{" "}
                 <kbd className="px-1.5 py-0.5 bg-slate-100 rounded border border-slate-200 text-slate-600 font-mono text-[10px]">
                   Shift + Enter
                 </kbd>{" "}
-                untuk baris baru
+                for a new line
               </span>
             </div>
           </form>
