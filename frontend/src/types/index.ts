@@ -47,6 +47,7 @@ export interface PaginatedResponse<T> {
 
 export type PaginatedTickets = PaginatedResponse<Ticket>;
 export type PaginatedUsers = PaginatedResponse<User>;
+export type PaginatedMessages = PaginatedResponse<Message>;
 
 
 export interface Message {
