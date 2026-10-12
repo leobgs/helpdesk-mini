@@ -104,7 +104,9 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
 
   const addMessage = useCallback((msg: Message) => {
     if (!msg?.id) return;
-    setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
+    setMessages((prev) =>
+      prev.some((m) => m.id === msg.id) ? prev : [...prev, msg],
+    );
   }, []);
 
   useEffect(() => {
@@ -321,17 +323,23 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-200px)] min-h-150">
         {/* Chat Panel */}
-        <Card className="lg:col-span-2 flex flex-col shadow-sm border-slate-200 h-full">
+        <Card className="lg:col-span-2 flex flex-col shadow-sm border-slate-200 min-h-150 h-full">
           <CardHeader className="py-4 border-b bg-slate-50">
             <CardTitle className="text-sm font-medium flex items-center justify-between">
               Conversation
               {wsStatus === "connected" && (
-                <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-300">
+                <Badge
+                  variant="outline"
+                  className="text-[10px] text-emerald-600 border-emerald-300"
+                >
                   Live
                 </Badge>
               )}
               {wsStatus === "disconnected" && (
-                <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300">
+                <Badge
+                  variant="outline"
+                  className="text-[10px] text-amber-600 border-amber-300"
+                >
                   Offline (HTTP fallback)
                 </Badge>
               )}
@@ -341,7 +349,10 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
                 </Badge>
               )}
               {wsStatus === "error" && (
-                <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300">
+                <Badge
+                  variant="outline"
+                  className="text-[10px] text-amber-600 border-amber-300"
+                >
                   Error (HTTP fallback)
                 </Badge>
               )}
