@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, status, WebSocket, WebSocketDisconnect, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Union
 from app.db.database import get_db
 from app.db.models import Ticket, User, RoleEnum
 from app.modules.tickets.schemas import (
@@ -10,6 +10,7 @@ from app.modules.tickets.schemas import (
     MessageOut,
     MessageCreate,
     PaginatedTicketsOut,
+    PaginatedMessagesOut,
 )
 from app.modules.tickets.service import TicketService
 from app.api.deps import get_current_user, RoleChecker, get_ticket_query
@@ -86,14 +87,20 @@ def update_ticket(
             pass
     return ticket
 
-@router.get("/{ticket_id}/messages", response_model=List[MessageOut])
+@router.get("/{ticket_id}/messages", response_model=Union[PaginatedMessagesOut, List[MessageOut]])
 def list_ticket_messages(
     ticket_id: int,
+    page: Optional[int] = Query(None, ge=1, description="Page number"),
+    limit: Optional[int] = Query(None, ge=1, le=100, description="Items limit per page"),
+    page_size: Optional[int] = Query(None, description="Alias for limit"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     service: TicketService = Depends(get_ticket_service)
 ):
     query = get_ticket_query(db, current_user)
+    if page is not None:
+        effective_limit = page_size if page_size is not None else (limit if limit is not None else 50)
+        return service.get_ticket_messages_paginated(query, ticket_id, page=page, limit=effective_limit)
     return service.get_ticket_messages(query, ticket_id)
 
 @router.post("/{ticket_id}/messages", response_model=MessageOut)
@@ -201,7 +208,11 @@ async def websocket_endpoint(
                 await manager.broadcast_to_ticket(ticket_id, msg_event)
                 
             except HTTPException as e:
+                db.rollback()
                 await websocket.send_json({"type": "error", "message": e.detail})
+            except Exception as e:
+                db.rollback()
+                await websocket.send_json({"type": "error", "message": "Failed to save message"})
                 
     except WebSocketDisconnect:
         manager.disconnect(websocket, ticket_id)
