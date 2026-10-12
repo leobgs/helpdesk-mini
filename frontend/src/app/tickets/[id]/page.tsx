@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, use, Suspense } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import Cookies from "js-cookie";
-import { Send, ArrowLeft, AlertCircle } from "lucide-react";
+import { Send, ArrowLeft, AlertCircle, Bell } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -67,6 +67,8 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
 
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [notificationPermission, setNotificationPermission] =
+    useState<NotificationPermission>("default");
 
   // Fetch ticket details
   const {
@@ -104,6 +106,33 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Request browser notification permission on mount
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      setNotificationPermission(Notification.permission);
+      if (Notification.permission === "default") {
+        Notification.requestPermission().then((perm) => {
+          setNotificationPermission(perm);
+        });
+      }
+    }
+  }, []);
+
+  const requestNotification = async () => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      const perm = await Notification.requestPermission();
+      setNotificationPermission(perm);
+      if (perm === "granted") {
+        toast.success("Notifikasi browser diaktifkan");
+        new Notification("Notifikasi Aktif", {
+          body: "Suara default perangkat akan berbunyi saat pesan baru masuk.",
+        });
+      } else if (perm === "denied") {
+        toast.error("Izin notifikasi diblokir di pengaturan browser");
+      }
+    }
+  };
+
   // WebSocket connection
   useEffect(() => {
     if (!ticket) return;
@@ -127,6 +156,28 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
       const msg = JSON.parse(event.data);
       if (msg.type === "message") {
         setMessages((prev) => [...prev, msg.data]);
+
+        // Show browser notification if message is from someone else
+        if (msg.data.sender?.id !== user?.id) {
+          if (
+            typeof window !== "undefined" &&
+            "Notification" in window &&
+            Notification.permission === "granted"
+          ) {
+            const notification = new Notification(
+              `Pesan baru dari ${msg.data.sender?.name || "Seseorang"}`,
+              {
+                body: msg.data.body,
+                icon: "/favicon.ico",
+              }
+            );
+
+            notification.onclick = () => {
+              window.focus();
+              notification.close();
+            };
+          }
+        }
       } else if (msg.type === "typing") {
         if (msg.data.user_id !== user?.id) {
           setTypingUsers((prev) => {
@@ -163,7 +214,7 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
     return () => {
       socket.close();
     };
-  }, [id, ticket, queryClient]);
+  }, [id, ticket, queryClient, user?.id]);
 
   const handleTyping = () => {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
@@ -267,17 +318,32 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
         <Card className="lg:col-span-2 flex flex-col shadow-sm border-slate-200 h-full">
           <CardHeader className="py-4 border-b bg-slate-50">
             <CardTitle className="text-sm font-medium flex items-center justify-between">
-              Conversation
-              {wsStatus === "disconnected" && (
-                <Badge variant="destructive" className="text-[10px]">
-                  Offline
-                </Badge>
-              )}
-              {wsStatus === "connecting" && (
-                <Badge variant="secondary" className="text-[10px]">
-                  Connecting...
-                </Badge>
-              )}
+              <span className="flex items-center gap-2">
+                Conversation
+                {wsStatus === "disconnected" && (
+                  <Badge variant="destructive" className="text-[10px]">
+                    Offline
+                  </Badge>
+                )}
+                {wsStatus === "connecting" && (
+                  <Badge variant="secondary" className="text-[10px]">
+                    Connecting...
+                  </Badge>
+                )}
+              </span>
+              {notificationPermission !== "granted" &&
+                typeof window !== "undefined" &&
+                "Notification" in window && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-7 gap-1 text-slate-600 hover:text-slate-900 border-slate-300"
+                    onClick={requestNotification}
+                  >
+                    <Bell className="w-3.5 h-3.5" />
+                    Aktifkan Notifikasi Suara
+                  </Button>
+                )}
             </CardTitle>
           </CardHeader>
           <CardContent className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50">
