@@ -102,65 +102,14 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
     enabled: !!ticket,
   });
 
-  // Deduplication and message merge helper
-  const appendOrUpdateMessage = useCallback(
-    (newMsg: Message) => {
-      setMessages((prev) => {
-        const existsIndex = prev.findIndex((m) => m.id === newMsg.id);
-        if (existsIndex !== -1) {
-          const copy = [...prev];
-          copy[existsIndex] = newMsg;
-          return copy;
-        }
-        // Match and replace optimistic temporary message if same body & sender
-        const optIndex = prev.findIndex(
-          (m) =>
-            m.id < 0 &&
-            m.body === newMsg.body &&
-            (m.sender?.id === newMsg.sender?.id || m.sender_id === newMsg.sender_id),
-        );
-        if (optIndex !== -1) {
-          const copy = [...prev];
-          copy[optIndex] = newMsg;
-          return copy;
-        }
-        return [...prev, newMsg];
-      });
-
-      // Keep TanStack Query cache in sync
-      queryClient.setQueryData<Message[]>(["ticket-messages", id], (old) => {
-        if (!old) return [newMsg];
-        if (old.some((m) => m.id === newMsg.id)) return old;
-        return [...old, newMsg];
-      });
-    },
-    [id, queryClient],
-  );
+  const addMessage = useCallback((msg: Message) => {
+    if (!msg?.id) return;
+    setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
+  }, []);
 
   useEffect(() => {
     if (initialMessages) {
-      setMessages((prev) => {
-        const messageMap = new Map<number, Message>();
-        initialMessages.forEach((msg) => messageMap.set(msg.id, msg));
-        // Keep pending optimistic messages
-        prev.forEach((msg) => {
-          if (
-            msg.id < 0 &&
-            !initialMessages.some(
-              (im) =>
-                im.body === msg.body &&
-                (im.sender?.id === msg.sender?.id || im.sender_id === msg.sender_id),
-            )
-          ) {
-            messageMap.set(msg.id, msg);
-          } else if (!messageMap.has(msg.id)) {
-            messageMap.set(msg.id, msg);
-          }
-        });
-        return Array.from(messageMap.values()).sort(
-          (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
-        );
-      });
+      setMessages(initialMessages);
     }
   }, [initialMessages]);
 
@@ -202,7 +151,7 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
         try {
           const msg = JSON.parse(event.data);
           if (msg.type === "message") {
-            appendOrUpdateMessage(msg.data);
+            addMessage(msg.data);
           } else if (msg.type === "typing") {
             if (msg.data.user_id !== user?.id) {
               setTypingUsers((prev) => {
@@ -254,7 +203,7 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
         socket.close(1000);
       }
     };
-  }, [id, ticket, user?.id, queryClient, refetchMessages, appendOrUpdateMessage]);
+  }, [id, ticket, user?.id, queryClient, refetchMessages, addMessage]);
 
   const handleTyping = () => {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
@@ -282,36 +231,18 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: "typing", is_typing: false }));
-    }
-
-    // Create optimistic message so chat is immediately visible
-    const tempId = -Date.now();
-    const optimisticMsg: Message = {
-      id: tempId,
-      ticket_id: Number(id),
-      sender_id: user?.id || 0,
-      body: text,
-      created_at: new Date().toISOString(),
-      sender: user || undefined,
-    };
-    appendOrUpdateMessage(optimisticMsg);
-
-    // If WebSocket is open, send via WebSocket
-    if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ body: text }));
     } else {
-      // Fallback: send via REST HTTP API to guarantee persistence
+      // Fallback: send via REST HTTP API if WebSocket is offline
       try {
         setIsSending(true);
         const { data } = await api.post<Message>(
           `/api/v1/tickets/${id}/messages`,
           { body: text },
         );
-        appendOrUpdateMessage(data);
+        addMessage(data);
       } catch (error) {
         toast.error("Failed to send message. Please try again.");
-        // Remove failed optimistic message
-        setMessages((prev) => prev.filter((m) => m.id !== tempId));
       } finally {
         setIsSending(false);
       }
@@ -418,12 +349,11 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
           </CardHeader>
           <CardContent className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50">
             {messages.map((msg) => {
-              const isMe = msg.sender?.id === user?.id || (msg.id < 0 && msg.sender_id === user?.id);
-              const isOptimistic = msg.id < 0;
+              const isMe = msg.sender?.id === user?.id;
               return (
                 <div
                   key={msg.id}
-                  className={`flex flex-col ${isMe ? "items-end" : "items-start"} gap-1 max-w-[80%] ${isMe ? "ml-auto" : ""} ${isOptimistic ? "opacity-75" : ""}`}
+                  className={`flex flex-col ${isMe ? "items-end" : "items-start"} gap-1 max-w-[80%] ${isMe ? "ml-auto" : ""}`}
                 >
                   <div className="text-[11px] text-slate-500 flex items-center gap-1">
                     <span className="font-semibold text-slate-700">
@@ -438,11 +368,6 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
                         minute: "2-digit",
                       })}
                     </span>
-                    {isOptimistic && (
-                      <span className="text-[10px] text-blue-500 italic ml-1">
-                        sending...
-                      </span>
-                    )}
                   </div>
                   <div
                     className={`p-3 rounded-lg text-sm shadow-sm whitespace-pre-wrap ${
