@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useEffect, useRef, use, Suspense, useCallback } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import Cookies from "js-cookie";
 import { ArrowLeft, AlertCircle } from "lucide-react";
 import Link from "next/link";
 
 import { api } from "@/lib/axios";
-import { Ticket, Message, Status, PaginatedMessages } from "@/types";
+import { Ticket, Message, PaginatedMessages } from "@/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 
@@ -20,6 +20,7 @@ import {
   TicketChatCard,
   WebSocketStatus,
 } from "@/components/tickets";
+import { getStatusBadge } from "../page";
 
 export default function TicketDetailPage({
   params,
@@ -228,32 +229,6 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
     }
   };
 
-  // Update ticket status mutation
-  const updateStatusMutation = useMutation({
-    mutationFn: async (status: Status) => {
-      const { data } = await api.patch(`/api/v1/tickets/${id}`, { status });
-      return data;
-    },
-    onSuccess: () => {
-      toast.success("Ticket status updated successfully");
-      queryClient.invalidateQueries({ queryKey: ["ticket", id] });
-    },
-  });
-
-  // Assign ticket to current agent mutation
-  const takeTicketMutation = useMutation({
-    mutationFn: async () => {
-      if (!user) return;
-      const { data } = await api.patch(`/api/v1/tickets/${id}`, {
-        assigned_agent_id: user.id,
-      });
-      return data;
-    },
-    onSuccess: () => {
-      toast.success("Ticket assigned to you");
-      queryClient.invalidateQueries({ queryKey: ["ticket", id] });
-    },
-  });
 
   if (isLoadingTicket || isLoadingMessages)
     return (
@@ -292,9 +267,7 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
         </Link>
         <h1 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-3">
           #{ticket.id} - {ticket.subject}
-          <Badge variant="secondary" className="uppercase text-xs">
-            {ticket.status.replace("_", " ")}
-          </Badge>
+          {getStatusBadge(ticket.status)}
         </h1>
       </div>
 
@@ -302,27 +275,19 @@ function TicketDetailContent({ params }: { params: Promise<{ id: string }> }) {
         {/* Chat Panel */}
         <TicketChatCard
           className="lg:col-span-2"
+          ticket={ticket}
           messages={messages}
-          currentUserId={user?.id}
           wsStatus={wsStatus}
           typingUsers={typingUsers}
-          isClosed={isClosed}
           onSendMessage={handleSendMessage}
           isSending={isSending}
           onTyping={handleTyping}
         />
 
-        {/* Ticket Info & Actions Panel */}
-        <div className="space-y-6">
+        {/* Ticket Info & Actions Panel (Desktop Only) */}
+        <div className="hidden lg:block lg:space-y-6">
           <TicketDetailsCard ticket={ticket} />
-          <TicketActionsCard
-            ticket={ticket}
-            userRole={user?.role}
-            onTakeTicket={() => takeTicketMutation.mutate()}
-            isTakingTicket={takeTicketMutation.isPending}
-            onStatusChange={(status) => updateStatusMutation.mutate(status)}
-            isUpdatingStatus={updateStatusMutation.isPending}
-          />
+          <TicketActionsCard ticket={ticket} />
         </div>
       </div>
     </AuthGuard>

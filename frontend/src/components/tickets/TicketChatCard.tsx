@@ -1,25 +1,28 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Message } from "@/types";
 import { Send, Loader2 } from "lucide-react";
+import { Message, Ticket } from "@/types";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getPriorityBadge } from "@/app/tickets/page";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  LiveStatusBadge,
+  MobileActionsMenu,
+  MobileDetailsMenu,
+  MessageBubble,
+  WebSocketStatus,
+} from "./chat";
 
-export type WebSocketStatus =
-  | "connecting"
-  | "connected"
-  | "disconnected"
-  | "error";
+export type { WebSocketStatus };
 
 interface TicketChatCardProps {
+  ticket?: Ticket;
   messages: Message[];
-  currentUserId?: number;
   wsStatus: WebSocketStatus;
   typingUsers: string[];
-  isClosed: boolean;
   onSendMessage: (text: string) => Promise<void>;
   isSending: boolean;
   onTyping: () => void;
@@ -27,35 +30,54 @@ interface TicketChatCardProps {
 }
 
 export function TicketChatCard({
+  ticket,
   messages,
-  currentUserId,
   wsStatus,
   typingUsers,
-  isClosed,
   onSendMessage,
   isSending,
   onTyping,
   className,
 }: TicketChatCardProps) {
+  const { user } = useAuth();
   const [newMessage, setNewMessage] = useState("");
+  const [showActionsMenu, setShowActionsMenu] = useState(false);
+  const [showDetailsCard, setShowDetailsCard] = useState(false);
+
+  const actionsDropdownRef = useRef<HTMLDivElement>(null);
+  const detailsDropdownRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const isClosed = ticket?.status === "closed";
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        actionsDropdownRef.current &&
+        !actionsDropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowActionsMenu(false);
+      }
+      if (
+        detailsDropdownRef.current &&
+        !detailsDropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowDetailsCard(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const resetTextareaHeight = () => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-    }
-  };
-
-  const adjustTextareaHeight = () => {
+  const adjustTextareaHeight = (reset = false) => {
     const el = textareaRef.current;
     if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+    el.style.height = reset ? "auto" : `${Math.min(el.scrollHeight, 160)}px`;
   };
 
   const handleSubmit = async (e?: React.FormEvent | React.KeyboardEvent) => {
@@ -64,30 +86,28 @@ export function TicketChatCard({
     if (!text || isSending || isClosed) return;
 
     setNewMessage("");
-    resetTextareaHeight();
+    adjustTextareaHeight(true);
     await onSendMessage(text);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter") {
-      // Shift + Enter: creates newline (default textarea behavior)
-      if (e.shiftKey) {
-        return;
-      }
+      if (e.shiftKey) return;
 
-      // Mobile check: on mobile virtual keyboards, Return creates newline,
-      // and send button is tapped to send.
+      // On mobile virtual keyboard, Return creates a newline; on desktop, Enter sends message
       const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
-      if (isMobile) {
-        return;
-      }
+      if (isMobile) return;
 
-      // On desktop: Enter sends message immediately
       if (e.nativeEvent.isComposing) return;
       e.preventDefault();
       handleSubmit(e);
     }
   };
+
+  const chatPartnerName =
+    user?.role === "customer"
+      ? ticket?.assigned_agent?.name || "Unassigned Agent"
+      : ticket?.customer?.name || "Customer";
 
   return (
     <Card
@@ -95,79 +115,73 @@ export function TicketChatCard({
         className || ""
       }`}
     >
-      <CardHeader className="py-4 border-b bg-slate-50">
-        <CardTitle className="text-sm font-medium flex items-center justify-between">
-          Conversation
-          {wsStatus === "connected" && (
-            <Badge
-              variant="outline"
-              className="text-[10px] text-emerald-600 border-emerald-300"
-            >
-              Live
-            </Badge>
-          )}
-          {wsStatus === "disconnected" && (
-            <Badge
-              variant="outline"
-              className="text-[10px] text-amber-600 border-amber-300"
-            >
-              Offline (HTTP fallback)
-            </Badge>
-          )}
-          {wsStatus === "connecting" && (
-            <Badge variant="secondary" className="text-[10px]">
-              Connecting...
-            </Badge>
-          )}
-          {wsStatus === "error" && (
-            <Badge
-              variant="outline"
-              className="text-[10px] text-amber-600 border-amber-300"
-            >
-              Error (HTTP fallback)
-            </Badge>
-          )}
-        </CardTitle>
+      <CardHeader className="py-3.5 px-4 border-b bg-slate-50">
+        <div className="hidden lg:flex items-center justify-between w-full">
+          <CardTitle className="text-sm font-semibold text-slate-800">
+            Conversation
+          </CardTitle>
+          <LiveStatusBadge status={wsStatus} />
+        </div>
+
+        <div className="flex lg:hidden items-center justify-between w-full">
+          <div className="flex flex-col text-left min-w-0 pr-2">
+            <div className="font-semibold text-slate-900 text-sm truncate">
+              {chatPartnerName}
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-0.5">
+              <span className="text-[11px] font-medium text-slate-400 uppercase">
+                Priority:
+              </span>
+              {ticket?.priority ? (
+                getPriorityBadge(ticket.priority)
+              ) : (
+                <span className="font-medium text-slate-700">-</span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <MobileActionsMenu
+              menuRef={actionsDropdownRef}
+              isOpen={showActionsMenu}
+              onToggle={() => {
+                setShowActionsMenu((prev) => !prev);
+                setShowDetailsCard(false);
+              }}
+              onClose={() => setShowActionsMenu(false)}
+              ticket={ticket}
+            />
+
+            <MobileDetailsMenu
+              menuRef={detailsDropdownRef}
+              isOpen={showDetailsCard}
+              onToggle={() => {
+                setShowDetailsCard((prev) => !prev);
+                setShowActionsMenu(false);
+              }}
+              ticket={ticket}
+            />
+          </div>
+        </div>
       </CardHeader>
 
-      <CardContent className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50">
-        {messages.map((msg) => {
-          const isMe = msg.sender?.id === currentUserId;
-          return (
-            <div
+      <div className="relative flex-1 min-h-0 flex flex-col">
+        {/* Floating badge pinned outside scrollable container to prevent scrolling with messages */}
+        <div className="lg:hidden absolute -top-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+          <LiveStatusBadge status={wsStatus} isFloating />
+        </div>
+
+        <CardContent className="flex-1 overflow-y-auto p-4 pt-9 lg:pt-4 space-y-4 bg-slate-50/50">
+          {messages.map((msg) => (
+            <MessageBubble
               key={msg.id}
-              className={`flex flex-col ${
-                isMe ? "items-end ml-auto" : "items-start"
-              } gap-1 max-w-[85%] sm:max-w-[75%] md:max-w-lg lg:max-w-xl`}
-            >
-              <div className="text-[11px] text-slate-500 flex items-center gap-1 px-1">
-                <span className="font-semibold text-slate-700">
-                  {isMe ? "You" : msg.sender?.name || "Unknown"}
-                </span>
-                <span className="uppercase opacity-60">
-                  ({msg.sender?.role || "system"})
-                </span>
-                <span className="opacity-60 ml-2">
-                  {new Date(msg.created_at).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </span>
-              </div>
-              <div
-                className={`p-3 rounded-lg text-sm shadow-sm whitespace-pre-wrap break-words [overflow-wrap:anywhere] max-w-full leading-relaxed ${
-                  isMe
-                    ? "bg-blue-600 text-white rounded-tr-none"
-                    : "bg-white border border-slate-200 text-slate-800 rounded-tl-none"
-                }`}
-              >
-                {msg.body}
-              </div>
-            </div>
-          );
-        })}
-        <div ref={messagesEndRef} />
-      </CardContent>
+              message={msg}
+              isMe={msg.sender?.id === user?.id}
+            />
+          ))}
+          <div ref={messagesEndRef} />
+        </CardContent>
+      </div>
 
       {typingUsers.length > 0 && (
         <div className="px-4 py-2 text-xs text-slate-500 italic bg-slate-50/50 border-t">
