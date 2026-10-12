@@ -47,3 +47,7 @@ class MessageOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+class PaginatedMessagesOut(PaginatedResponse[MessageOut]):
+    pass
+
