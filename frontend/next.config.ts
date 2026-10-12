@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   // ouput build base on deploy
-  // output: "standalone",
+  output: "standalone",
   /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
