@@ -120,6 +120,10 @@ class TicketService:
         ticket = self.get_ticket(query, ticket_id)
         return self.repo.get_ticket_messages(ticket.id)
 
+    def get_ticket_messages_paginated(self, query: Query, ticket_id: int, page: int = 1, limit: int = 50):
+        ticket = self.get_ticket(query, ticket_id)
+        return self.repo.get_ticket_messages_paginated(ticket.id, page=page, limit=limit)
+
     def add_message(self, query: Query, ticket_id: int, sender_id: int, body: str) -> Message:
         ticket = self.get_ticket(query, ticket_id)
         
